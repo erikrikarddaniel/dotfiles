@@ -79,11 +79,17 @@ Confirmed on nf-core/phyloplace, whose `.github/actions/nf-test/action.yml` invo
 nf-test CI action for the same pattern before assuming plain `--profile <name>` is correct.
 
 When filling in `CHANGELOG.md` for a sync + module/subworkflow-update batch (before the PR
-exists yet, so before a real PR number is known): add one entry under `Changed` with a
-placeholder PR number (`#NN`, linking to `.../pull/NN`) describing the sync + updates, and
-fill in the `Dependencies` table with **only** the tools whose version actually changed
-(read off each affected module's `environment.yml` diff) — previous version, new version,
-one row per tool. Leave the placeholder for the user to fill in once the PR number is real.
+exists yet, so before a real PR number is known): add **exactly one** entry under `Changed`
+with a placeholder PR number (`#NN`, linking to `.../pull/NN`), phrased simply, e.g. "Template
+update to X.Y.Z and software updates (by @user)" — even if the sync and the module/subworkflow
+updates land as separate git commits (they normally do, one per `nf-core pipelines sync` /
+`nf-core modules update` / `nf-core subworkflows update` step). Do not add one CHANGELOG line
+per commit; the whole batch is one PR-sized unit from the changelog's point of view. Fill in
+the `Dependencies` table with **only** the tools whose version actually changed (read off each
+affected module's `environment.yml` diff, or confirm via `git diff <start-ref> HEAD --
+'*environment.yml'` across the whole batch) — previous version, new version, one row per tool;
+leave it empty if nothing changed (e.g. an update was metadata-only, no version bump). Leave
+the PR-number placeholder for the user to fill in once the PR number is real.
 
 ### Opening PRs (`gh pr create --web`)
 
