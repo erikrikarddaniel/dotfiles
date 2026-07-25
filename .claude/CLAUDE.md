@@ -68,6 +68,16 @@ wasted run/fail/update-snapshot/rerun cycle when the version string is the only 
 changed. Not every updated tool's version ends up embedded in snapshots — check which ones
 actually appear (`grep -rn '"<tool>":' tests/*.snap`) before assuming.
 
+When running `nf-test` manually to verify a sync/update before committing, pass container
+profiles with a `+` prefix — `nf-test test --profile=+docker` — not `--profile docker`.
+Without the `+`, the CLI value replaces whatever profile the test itself declares (e.g.
+`profile "test"` inside a `.nf.test` file, or a pipeline-wide default `profile = "test"` in
+`nf-test.config`) instead of adding to it, silently dropping the test's own params and
+producing a failure that looks like a real pipeline bug but is just a wrong invocation.
+Confirmed on nf-core/phyloplace, whose `.github/actions/nf-test/action.yml` invokes it as
+`nf-test test --profile=+${{ inputs.profile }}` for exactly this reason — check a repo's own
+nf-test CI action for the same pattern before assuming plain `--profile <name>` is correct.
+
 When filling in `CHANGELOG.md` for a sync + module/subworkflow-update batch (before the PR
 exists yet, so before a real PR number is known): add one entry under `Changed` with a
 placeholder PR number (`#NN`, linking to `.../pull/NN`) describing the sync + updates, and
