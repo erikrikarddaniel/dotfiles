@@ -112,6 +112,27 @@ affected module's `environment.yml` diff, or confirm via `git diff <start-ref> H
 leave it empty if nothing changed (e.g. an update was metadata-only, no version bump). Leave
 the PR-number placeholder for the user to fill in once the PR number is real.
 
+### Adding modules and subworkflows
+
+Always scaffold new components with the nf-core CLI rather than hand-writing files — it
+registers the component in `modules.json`/tracking correctly and matches the expected
+structure for later `nf-core modules update`/`nf-core subworkflows update` runs.
+
+- New vendored module from nf-core/modules: `nf-core modules install <name>` (e.g.
+  `hmmer/hmmrank`).
+- New **local** subworkflow (no official nf-core/modules equivalent, or starting local
+  before eventually proposing it upstream): `nf-core subworkflows create <name> --dir .
+  --author @<handle>`. In a pipeline repo this scaffolds under `subworkflows/local/<name>/`
+  by default (`main.nf`, `meta.yml`, `tests/main.nf.test`) — the generated `main.nf` is
+  boilerplate (e.g. a placeholder `SAMTOOLS_SORT`/`SAMTOOLS_INDEX` chain) that still needs
+  its `take:`/`main:`/`emit:` filled in with the real logic.
+- Before creating a local subworkflow, check nf-core/modules doesn't already have an
+  official one for that purpose (`gh api "search/code?q=<name>+repo:nf-core/modules+path:subworkflows/nf-core"`)
+  — confirmed absent (nf-core/metatdenovo, `transdecoder`, 2026-07-26) before scaffolding
+  the local version.
+
 ### Opening PRs (`gh pr create --web`)
 
 nf-core pipeline repos have a `.github/PULL_REQUEST_TEMPLATE.md` (instructions comment + checklist). Passing `--body` to `gh pr create` replaces it entirely, which loses the template. Instead, read the template file and build the body as **template content, then your description appended after it** (e.g. under a `## Description` heading) — don't just write your own body from scratch. This applies whether or not `--web` is used.
+
+Always include `--web` when running `gh pr create`, for any repo — it opens a pre-filled browser compose form the user must manually submit, giving them a final edit/review gate before the PR is actually filed, rather than filing it immediately via the API.
