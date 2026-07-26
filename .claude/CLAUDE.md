@@ -131,6 +131,22 @@ structure for later `nf-core modules update`/`nf-core subworkflows update` runs.
   — confirmed absent (nf-core/metatdenovo, `transdecoder`, 2026-07-26) before scaffolding
   the local version.
 
+### Avoid separate (de)compression modules between pipeline steps
+
+The user prefers gzip/gunzip done *inside* the module that actually processes the file,
+not as a separate bridging `PIGZ_COMPRESS`/`PIGZ_UNCOMPRESS` step in between two tool
+modules — chaining `UNPIGZ -> TOOL -> PIGZ_COMPRESS` leaves a large uncompressed
+intermediate sitting in that task's `work/` dir for no reason. If the tool a module wraps
+can't read/write gzip natively (verify empirically — don't assume; confirmed on
+nf-core/metatdenovo that KofamScan's `exec_annotation` can't read `.gz` input directly,
+*and* that a `<(gunzip -c ...)` process-substitution FIFO doesn't work either, since it
+invokes the underlying search tool once per profile against the same path and a FIFO can
+only be read once), patch the vendored module (`nf-core modules patch <name>`) to
+gunzip its own input at the top of the script and gzip its own output at the bottom,
+`rm`-ing any decompressed intermediate once the tool is done with it — matching the
+pattern nf-core's own `eggnogmapper` module already uses for its input. This does mean
+the patched module can no longer realistically be proposed upstream as-is later.
+
 ### Opening PRs (`gh pr create --web`)
 
 nf-core pipeline repos have a `.github/PULL_REQUEST_TEMPLATE.md` (instructions comment + checklist). Passing `--body` to `gh pr create` replaces it entirely, which loses the template. Instead, read the template file and build the body as **template content, then your description appended after it** (e.g. under a `## Description` heading) — don't just write your own body from scratch. This applies whether or not `--web` is used.
