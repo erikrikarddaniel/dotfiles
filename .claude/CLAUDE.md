@@ -16,6 +16,27 @@ Before considering any change ready / before a PR, run all of the following (the
 2. `nf-core pipelines lint` (add `--release` when the PR targets `master`/`main`) — nf-core community pipeline-standards lint. Also in the `nf-core` conda env.
 3. `nextflow lint .` — Nextflow "strict syntax" lint. Run it with two Nextflow versions: the minimum declared in the pipeline's `nextflow.config` (`nextflowVersion = '!>=X.Y.Z'`) and the latest available. Use `NXF_VER=<version> nextflow lint .` to target a version — confirmed (nf-core/magmap, minimum `25.10.4`) that `NXF_VER` actually downloads and switches to that exact binary (verify with `NXF_VER=<version> nextflow -version`), and `lint` exists well below 26.04 too — the earlier assumption that it's a 26.04+-only subcommand was wrong, no special-casing needed for older declared minimums.
 
+### Test data
+
+Pipeline repos should carry **no test data of their own** — no fixture files committed
+to the pipeline repo, and no local-only file paths in `nf-test` cases either. All of it
+belongs in the corresponding `<org>/test-datasets` repo (often the user's own fork, e.g.
+`erikrikarddaniel/test-datasets`), on a branch named after the pipeline, fetched remotely
+at test time via `params.pipelines_testdata_base_path` + a path — exactly how
+`conf/test.config` already builds its `taxonomy`/`alignment`/etc. URLs. This applies to
+module-level `nf-test` fixtures too, not just the pipeline-level `-profile test` config —
+a module test reading `file("$projectDir/some/local/dir/fixture.tsv")` is the same
+violation as a pipeline test with a local path, just at smaller scope.
+
+Confirmed on nf-core/sativa (2026-07-26): a fixtures directory (`run_sativa_tests/`)
+accumulated over module development, several of whose files started as symlinks into a
+*sibling local clone* of the test-datasets repo on that machine — those symlinks broke
+every time that separate local checkout's branch got switched for unrelated work, which
+is exactly the kind of local-machine fragility this policy exists to avoid. If a needed
+fixture doesn't exist in test-datasets yet, add it there first (on the correct branch)
+rather than committing it into the pipeline repo as a stopgap — and check whether a
+parallel session might already be pushing to that test-datasets repo before touching it.
+
 ### Template syncs
 
 nf-core/tools periodically releases a new version of the pipeline template (the scaffold
