@@ -147,8 +147,39 @@ gunzip its own input at the top of the script and gzip its own output at the bot
 pattern nf-core's own `eggnogmapper` module already uses for its input. This does mean
 the patched module can no longer realistically be proposed upstream as-is later.
 
+### Contributing fixes back to nf-core/modules
+
+When a real bug is found in a vendored nf-core/modules component while working in a
+pipeline repo (e.g. found while patching it): a genuine bug fix (existing intended
+behavior is broken) can go straight to a PR against nf-core/modules, no issue needed
+first — a bug doesn't need discussion. Reserve opening an issue first for actual new
+functionality or reworking (e.g. adding gzip-input support where none existed before) —
+that's a design decision worth discussing before writing the PR.
+
+Example: found that the official `eggnogmapper` module's `fasta.extension == '.gz'`
+check is always false (Nextflow's `Path.extension` returns `'gz'`, no leading dot, so
+its inline-decompression branch never fires) — silently masked for the default
+`diamond` search mode since DIAMOND reads gzip natively, but a real bug for other modes.
+Straight to a PR fixing the comparison, no issue opened.
+
 ### Opening PRs (`gh pr create --web`)
 
 nf-core pipeline repos have a `.github/PULL_REQUEST_TEMPLATE.md` (instructions comment + checklist). Passing `--body` to `gh pr create` replaces it entirely, which loses the template. Instead, read the template file and build the body as **template content, then your description appended after it** (e.g. under a `## Description` heading) — don't just write your own body from scratch. This applies whether or not `--web` is used.
+
+`--web` does not create the PR itself in this gh version (2.45.0) — it only opens a
+pre-filled compose page and waits for a human to click "Create" there. Checking
+`gh pr list`/`gh pr view` right after invoking it will correctly show nothing yet;
+that is not failure, it just means the user hasn't submitted the browser form. Do
+NOT treat that as "the --web attempt didn't work" and race ahead with a plain
+`gh pr create` (no `--web`) as a "fallback" — confirmed (nf-core/phyloplace, twice
+across sessions) that doing so creates the PR via the API first, and the still-open
+browser tab from the earlier `--web` call then fails with a "PR already exists"
+error when the user goes to click Create, since by then it already exists. The
+underlying PR is fine either way (whichever side wins the race becomes the one
+real PR, the loser just errors harmlessly) but it's confusing and looks like a
+bug. After running `--web`, just report that the browser page was opened and wait
+— check `gh pr list`/`gh pr view` after some real delay (or when the user mentions
+it), and only fall back to a direct `gh pr create` if the user says the browser
+route didn't work or explicitly asks for it done directly instead.
 
 Always include `--web` when running `gh pr create`, for any repo — it opens a pre-filled browser compose form the user must manually submit, giving them a final edit/review gate before the PR is actually filed, rather than filing it immediately via the API.
