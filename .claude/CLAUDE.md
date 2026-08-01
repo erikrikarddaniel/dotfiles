@@ -6,6 +6,21 @@ Global instructions for Claude Code, applied across all projects on this machine
 
 If a project's root contains an `AGENTS.md` file, treat it as you would a `CLAUDE.md` — read and follow its instructions for that repo, in addition to this global file. This is how the user wants agent-specific instruction-loading configured: centrally, per-user, rather than via a repo-committed `CLAUDE.md`.
 
+## This file's location
+
+`~/.claude/CLAUDE.md` is a symlink to `~/dotfiles/.claude/CLAUDE.md` — the Edit tool refuses to
+write through a symlink, so edit the real path (`~/dotfiles/.claude/CLAUDE.md`) directly, not the
+symlink path.
+
+## Markdown style
+
+In Markdown files, write one sentence per line (a "semantic linefeeds" / ventilated-prose style)
+rather than wrapping prose into full paragraphs — the user's personal preference across all
+projects, not a widely-accepted nf-core convention, adopted specifically because it makes diffs
+much easier to interpret (a changed sentence shows as a one-line diff instead of a reflowed
+paragraph). Applies to new Markdown content going forward; don't reformat existing
+paragraph-wrapped content unless asked.
+
 ## nf-core pipeline repos (e.g. nf-core/ampliseq and similar)
 
 **Do not add a `CLAUDE.md` file to nf-core pipeline repos.** nf-core core-team consensus (as of 2026-07) is not to allow `CLAUDE.md` in pipeline repos — it could balloon for other coding agents and clutter the repo root. Use `AGENTS.md` only (see above); it's loaded the same way via the instruction just above. If a repo already has a committed `CLAUDE.md`, that's leftover from before this consensus — remove it (folded into whatever PR/branch is already in flight for that repo unless told otherwise).
@@ -112,6 +127,13 @@ affected module's `environment.yml` diff, or confirm via `git diff <start-ref> H
 leave it empty if nothing changed (e.g. an update was metadata-only, no version bump). Leave
 the PR-number placeholder for the user to fill in once the PR number is real.
 
+Keep CHANGELOG entries user-facing — they're mostly read by end users of the pipeline, not
+contributors. Skip internal CI plumbing detail like specific GitHub Action digests/SHAs (e.g.
+reverting a faulty `setup-apptainer` pin): fixing it is worth a commit message, not a
+CHANGELOG line. Confirmed on nf-core/magmap (2026-07-28): added a `Fixed` entry naming the
+exact action and digest being reverted — more implementation detail than an end user needs;
+just the CI status finally.
+
 ### Adding modules and subworkflows
 
 Always scaffold new components with the nf-core CLI rather than hand-writing files — it
@@ -183,3 +205,26 @@ it), and only fall back to a direct `gh pr create` if the user says the browser
 route didn't work or explicitly asks for it done directly instead.
 
 Always include `--web` when running `gh pr create`, for any repo — it opens a pre-filled browser compose form the user must manually submit, giving them a final edit/review gate before the PR is actually filed, rather than filing it immediately via the API.
+
+### PR/review process specifications
+
+nf-core's formal review guidelines live at https://nf-co.re/docs/specifications/reviews/overview (an index page; the actual content is in its linked sub-pages).
+Key rules, extracted 2026-07-31:
+
+- Requesting review: post in the `#request-review` Slack channel (pipeline releases use `#release-review-trading` instead).
+  This is the user's own action (Slack) — not something to do via `gh`/the GitHub API.
+- Merge threshold: a normal PR needs just one positive review plus no unresolved concerns.
+  Only release PRs to `master` need two approvals (a project's first-ever release needs at least one review specifically from the core/maintainer team).
+- Commit strategy: nf-core prefers merge commits over squashing — verbose per-PR commit history is fine and expected, don't squash before opening or merging a PR.
+  Feature branches should be deleted immediately after merge.
+- Review scope: authors can dismiss "request changes" reviews they consider resolved/stale.
+  A PR with an approval but some unresolved minor questions can still merge once addressed to "common-sense" satisfaction — perfection isn't required.
+  An abandoned re-review request can be merged after 3 months if a different reviewer gives an independent approval instead.
+- Component (module/subworkflow) review checklist, useful as a self-check before requesting review: bioconda dependency at latest version, all optional params routed through `$args`, correct gzip/bzip2/etc. choice for large outputs, tests for every output including optional ones, `meta.yml` has correct EDAM/bio.tools links, tool version-extraction command is optimised.
+
+### Prefer non-process solutions when possible
+
+The user prefers avoiding a full Nextflow process invocation for trivial file manipulation (e.g. renaming/copying a single small file to satisfy a naming convention like MultiQC's `*_mqc.*` custom-content auto-detection) when a lighter, process-free alternative exists.
+Nextflow's built-in channel operators run in the workflow's own orchestration process rather than being scheduled as a job — no container pull, no executor queueing, no per-task overhead — and are just as robust across local/HPC/cloud backends as `publishDir` itself, since they go through the same underlying file-handling machinery.
+`collectFile` (with a closure returning `[filename, content]` per item) is the established idiom for this in nf-core/metatdenovo specifically, already used twice in `workflows/metatdenovo.nf` for `_mqc.yaml` files before this preference was ever stated explicitly — reach for it (or a similar built-in operator) before reaching for a new or existing process/module just to reshape a file.
+Confirmed on nf-core/metatdenovo (2026-07-31): swapped an initially-proposed `cat/cat`-based rename for a `TRANSRATE.out.assemblies.collectFile { meta, csv -> [...] }` step instead, at the user's request, specifically to avoid the process invocation.
