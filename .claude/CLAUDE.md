@@ -52,6 +52,16 @@ fixture doesn't exist in test-datasets yet, add it there first (on the correct b
 rather than committing it into the pipeline repo as a stopgap — and check whether a
 parallel session might already be pushing to that test-datasets repo before touching it.
 
+Every dataset added to a `test-datasets` branch must be documented in that branch's own
+`README.md`, under a `## Datasets for nf-core/<pipeline>` section (one per pipeline
+branch), with a `###` subsection per dataset: what it is, how it was constructed (source,
+selection/sampling method, tools used), and what it's for (which test config/profile or
+module test consumes it). Match the existing style already used on the `magmap` branch —
+prose + an exact list of the resulting filenames. Confirmed on nf-core/sativa
+(2026-08-01): documented both the raxtax module-test fixtures and a curated GTDB
+archaeal-16S dataset this way in one commit to the `sativa` branch's README, since a
+single session had touched both.
+
 ### Template syncs
 
 nf-core/tools periodically releases a new version of the pipeline template (the scaffold
