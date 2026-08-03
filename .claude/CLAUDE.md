@@ -12,6 +12,17 @@ If a project's root contains an `AGENTS.md` file, treat it as you would a `CLAUD
 write through a symlink, so edit the real path (`~/dotfiles/.claude/CLAUDE.md`) directly, not the
 symlink path.
 
+## Locating software
+
+If a command isn't on `PATH` (or you're unsure which of several installs/conda envs to
+use — this machine has many, e.g. `~/miniconda3/envs/nf-core`, per-project local
+installs like `./nf-test` in some repos, linuxbrew), ask the user where to find it
+rather than spending multiple tool calls searching the filesystem for it yourself.
+Confirmed 2026-08-03: burned several `find`/`which`/`ls` round-trips hunting for
+`nf-test` (eventually found in the `nf-core` conda env, consistent with this file's
+existing note that `prek`/`nf-core` also live there) before the user interjected to ask
+first next time.
+
 ## Markdown style
 
 In Markdown files, write one sentence per line (a "semantic linefeeds" / ventilated-prose style)
@@ -163,6 +174,40 @@ structure for later `nf-core modules update`/`nf-core subworkflows update` runs.
   — confirmed absent (nf-core/metatdenovo, `transdecoder`, 2026-07-26) before scaffolding
   the local version.
 
+### Groovy GString pitfall: backtick + backslash-escape in a script comment corrupts later interpolations
+
+Confirmed on nf-core/magmap (2026-08-03, `COLLECT_STATS`, PR #222): a process's
+`script: """ ... """` block is one big Groovy GString with several `${...}`
+interpolations. Putting a backtick together with a backslash-escape sequence
+(e.g. `` `grep -v '^\*'` ``) in a **comment** inside that block — text with no
+interpolation of its own — throws off the alignment between literal text and
+interpolated values for every `${...}` from that point onward in the rendered
+script. Symptom: values meant for one `${...}` slot appear at an earlier,
+unrelated location (even inside the offending comment itself), and each
+subsequent slot silently gets the *next* slot's value, cascading to the end
+(the last slot renders empty). This produces confusing runtime errors far
+downstream (e.g. an R `group_by()`/"column not found" failure) with no hint
+that the actual defect is a stray backtick in a comment several lines
+earlier.
+
+This is **not** a JVM heap or host-memory artifact, despite easily looking
+like one — reproduced identically and deterministically on two unrelated
+machines (a local dev box and a fresh GitHub-hosted CI runner), including one
+occurrence that happened to coincide with real heap pressure and one that
+didn't. Don't trust an OOM co-occurring with this symptom as the explanation
+without first checking for backtick+backslash combinations in nearby comments.
+
+A minimal standalone Nextflow reproduction with the same nested-GString
+structure (conditional `def` string variables built from `.collect{}.join()`,
+interpolated into an outer `"""..."""`) did *not* reproduce it — whatever
+triggers this needs more specific conditions than were isolated. Diagnose by
+bisecting comment/text changes (revert one suspicious piece of *added* text
+at a time) rather than assuming the R/business logic itself is at fault,
+especially when the corruption pattern shows values landing in the wrong
+`${...}` slot rather than being simply missing or wrong-typed. Fix is simple
+once found: don't combine a backtick with a backslash-escape in a script
+comment (or anywhere else in the GString) — rephrase without the backtick.
+
 ### Avoid separate (de)compression modules between pipeline steps
 
 The user prefers gzip/gunzip done *inside* the module that actually processes the file,
@@ -232,7 +277,49 @@ Key rules, extracted 2026-07-31:
   An abandoned re-review request can be merged after 3 months if a different reviewer gives an independent approval instead.
 - Component (module/subworkflow) review checklist, useful as a self-check before requesting review: bioconda dependency at latest version, all optional params routed through `$args`, correct gzip/bzip2/etc. choice for large outputs, tests for every output including optional ones, `meta.yml` has correct EDAM/bio.tools links, tool version-extraction command is optimised.
 
-### Prefer non-process solutions when possible
+### Params flow in as explicit values, not read directly (magmap, metatdenovo, phyloplace, sativa — not ampliseq)
+
+`main.nf` should pass `params.*` values into `workflows/<pipeline>.nf` as explicit
+arguments (via its `take:` block), rather than `workflows/<pipeline>.nf` — or any
+subworkflow/module beneath it — reading `params.*` directly.
+Confirmed this applies to nf-core/magmap, nf-core/metatdenovo, nf-core/phyloplace, and
+nf-core/sativa.
+nf-core/ampliseq is a known, deliberate exception that does *not* follow this pattern —
+don't assume it holds for every pipeline the user works on; check before applying it
+somewhere new.
+
+Why: keeps everything from `workflows/<pipeline>.nf` downward reusable and testable
+independent of any particular global `params` object — code that reads `params.foo`
+directly can't be driven by a different config/call site (another pipeline reusing the
+same subworkflow, an nf-test module-level test, etc.) without supplying a full `params`
+object with a matching field name.
+
+Trade-off the user is aware of and accepts: since these are positional `take:`
+arguments, a workflow's signature can grow into a long, unwieldy list as more options
+get added over time.
+That's an accepted cost of the pattern, not a problem to solve by having code reach
+back into `params.*` directly partway down the call chain to shorten the signature.
+
+### Channel variables get a `ch_` prefix, created in PIPELINE_INITIALISATION
+
+In workflow/subworkflow Groovy code, name any `Channel`-typed variable with a `ch_`
+prefix (`ch_taxonomy`, `ch_alignment`, `ch_versions`, `ch_hmm_profile`, …).
+Plain (non-channel) values — booleans, strings, paths held as bare values rather than
+piped through a channel operator, numbers — do *not* get the prefix (`skip_raxtax`,
+`hmm`, `outdir`, `multiqc_config`).
+
+Channels for the pipeline's raw inputs get created in one place: the
+`PIPELINE_INITIALISATION` workflow in `subworkflows/local/utils_nfcore_<pipeline>_pipeline/main.nf`.
+It takes plain path/string params in via its `take:` block (e.g. `taxonomy`,
+`alignment`), turns them into channels there (`ch_taxonomy = channel.fromPath(taxonomy)`),
+and emits the channels for `main.nf` to pass on to `workflows/<pipeline>.nf`.
+Confirmed nf-core/sativa already does this (`subworkflows/local/utils_nfcore_sativa_pipeline/main.nf`).
+Combined with the params-flow-as-values convention above: `main.nf` never touches a
+channel itself, `PIPELINE_INITIALISATION` is the one place raw params become channels,
+and everything downstream only ever receives already-built channels or plain values,
+never `params.*` directly.
+
+
 
 The user prefers avoiding a full Nextflow process invocation for trivial file manipulation (e.g. renaming/copying a single small file to satisfy a naming convention like MultiQC's `*_mqc.*` custom-content auto-detection) when a lighter, process-free alternative exists.
 Nextflow's built-in channel operators run in the workflow's own orchestration process rather than being scheduled as a job — no container pull, no executor queueing, no per-task overhead — and are just as robust across local/HPC/cloud backends as `publishDir` itself, since they go through the same underlying file-handling machinery.
