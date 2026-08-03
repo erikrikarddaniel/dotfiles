@@ -94,6 +94,32 @@ branch cut from it first (not directly on top of work you don't want conflict-ta
 so template conflicts and any later module/subworkflow-update conflicts don't have to be
 untangled twice from the same merge.
 
+Before syncing, make sure the fork's `origin/TEMPLATE` branch is current with
+`upstream/TEMPLATE` — `nf-core pipelines sync` (via `checkout_template_branch()`) always
+tries `git checkout origin/TEMPLATE -b TEMPLATE` first, and only falls back to whatever's
+sitting in an existing *local* `TEMPLATE` branch if that fails (missing `origin/TEMPLATE`,
+or a local `TEMPLATE` branch already present, which blocks the `-b` creation). If
+`origin/TEMPLATE` is missing or stale, the sync silently regenerates the template from
+that stale/local base instead of a fresh one, producing a much larger and more confusing
+merge-conflict set than the real delta — confirmed on nf-core/magmap (2026-08-03):
+`origin/TEMPLATE` didn't exist on the fork at all, so the sync fell back to a local
+`TEMPLATE` branch stuck five nf-core/tools versions behind (3.5.2), and `git clean -fd`
+run mid-recovery from that (without a dry-run first) destroyed real local storeDir caches
+(`genomes/`, `magmap_prokka/`) as a side effect — expensive to redo, avoidable by keeping
+`origin/TEMPLATE` current in the first place. Also confirmed nf-core/metatdenovo's fork
+`origin/TEMPLATE` was stuck at an ancient "initial template build" snapshot (2.2.dev0)
+while local `TEMPLATE` and `upstream/TEMPLATE` were both much newer — the same latent risk,
+just not yet triggered. Fix: `git fetch upstream && git checkout -B TEMPLATE
+upstream/TEMPLATE && git push origin TEMPLATE` before syncing if the two have diverged or
+`origin/TEMPLATE` is missing/behind.
+
+After every successful sync, push the resulting local `TEMPLATE` branch to `origin`
+immediately (`git push origin TEMPLATE`) — don't wait until the next sync to notice it's
+drifted. This may also be part of why nf-core's automated per-repo sync PRs (opened by its
+GitHub Action, see the top of this section) sometimes look confusing: if they're diffing
+against a fork's stale `origin/TEMPLATE`, the presented diff can be far larger than the
+real delta.
+
 After a sync, `nf-core modules update --all --no-preview` and
 `nf-core subworkflows update --all --no-preview` bring vendored `modules/nf-core/` and
 `subworkflows/nf-core/` content current too. Local patches (a module's `*.diff` file, for a
