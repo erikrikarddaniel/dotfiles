@@ -69,6 +69,26 @@ much easier to interpret (a changed sentence shows as a one-line diff instead of
 paragraph). Applies to new Markdown content going forward; don't reformat existing
 paragraph-wrapped content unless asked.
 
+## Verifying claims with scripts
+
+When a script written to verify a claim throws on real input, treat the exception as a
+finding about the input, not a nuisance in the script.
+It means the data has a shape the current model of it doesn't cover, and that is usually
+the cheapest signal available that an assumption is wrong.
+Never patch such a crash by narrowing the data — taking `[0]`, coercing a type, dropping a
+branch — just to make the run complete.
+
+Confirmed 2026-08-24 reviewing nf-core/mag#1103: a script comparing `nextflow_schema.json`
+against a typed `params` block threw `TypeError: unhashable type: 'list'` on a union type
+(`"help": {"type": ["boolean", "string"]}`).
+Patching it with `st[0]` silently discarded `"string"`, manufacturing a type mismatch that
+then appeared as the one concrete example in a posted review comment.
+The PR author corrected it.
+
+Any claim resting on such a script inherits every shortcut taken to make the script run.
+Where the evidence is thin, state the general risk rather than manufacturing a specific
+instance to illustrate it.
+
 ## Posting PR code reviews (any repo)
 
 When reviewing someone else's PR (any repo, not nf-core-specific) and a finding maps to a
@@ -91,6 +111,37 @@ prose, same as before.
 Confirmed 2026-08-11 as a standing preference (came up reviewing nf-core/rnasplice PR
 #242), explicitly requested to apply in sessions rooted in any repo, not just the one it
 was first requested in.
+
+### Choosing the review verdict
+
+When the PR author is the maintainer of the code being reviewed, and the findings are real but
+non-blocking (inconsistencies, nits, questions — not demonstrated bugs), the verdict is
+**Approve with comments** — not "Request changes", and not withholding approval pending another
+round.
+The maintainer is ultimately responsible for the code, so a non-blocking finding is theirs to
+weigh rather than the reviewer's to gate on.
+And nf-core review queues can be long, so forcing a further review round postpones merging for no
+real benefit.
+Reserve request-changes for genuine blockers: a defect actually demonstrated to break behaviour,
+or a correctness risk that cannot be settled in comments.
+Don't hand the approve/block call back to the user as "your judgement" when the findings are
+non-blocking and the author is the maintainer — say Approve with comments.
+Confirmed 2026-08-24 on nf-core/mag#1103, where the strongest finding had been empirically shown
+*not* to be broken.
+
+Where those conditions don't hold — an external contribution, or blocking asks already
+outstanding from other reviewers — a plain **Comment** review is usually the better call than
+adding another block.
+It delivers the information without adding process to a PR that is already flagged as awaiting
+changes.
+Confirmed 2026-08-24 on nf-core/modules#12198.
+
+A submitted review's type cannot be changed afterwards; `PATCH .../reviews/{id}` edits only the
+body text, not the state.
+To undo a mis-clicked "Request changes", dismiss the review (needs push access on the repo, which
+nf-core org membership generally grants): the state becomes `DISMISSED`, it stops counting as a
+block, and all inline comments remain in place.
+
 
 ## nf-core pipeline repos (e.g. nf-core/ampliseq and similar)
 
