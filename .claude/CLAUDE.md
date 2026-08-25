@@ -329,6 +329,33 @@ structure for later `nf-core modules update`/`nf-core subworkflows update` runs.
   official one for that purpose (`gh api "search/code?q=<name>+repo:nf-core/modules+path:subworkflows/nf-core"`)
   — confirmed absent (nf-core/metatdenovo, `transdecoder`, 2026-07-26) before scaffolding
   the local version.
+- **Check for an existing nf-core SUBWORKFLOW, not just modules, before wiring a chain of
+  modules together yourself.** `nf-core subworkflows list remote | grep -i <topic>` is the
+  cheap check and is easy to skip after `nf-core modules list remote` has already turned up
+  the individual modules. Confirmed on nf-core/metatdenovo (2026-08-25, #460): hand-wired
+  `MMSEQS_CREATEDB → MMSEQS_LINCLUST → MMSEQS_CREATETSV` when the official
+  `mmseqs_fasta_cluster` subworkflow already does exactly that chain — and does it better,
+  `.join()`ing createdb's output with the clustering result so it stays correct for more than
+  one input sequence file, and selecting linclust vs. cluster by argument. The user caught it
+  by asking. An official subworkflow encodes correctness details a hand-wired chain won't.
+- **Scaffold hand-written local modules with `nf-core modules create <tool>/<subtool> --dir .
+  --author @<handle> --label <process_label> --meta --empty-template`**, even when the module
+  is pipeline-specific glue with no upstream equivalent, then replace the generated body —
+  never start from a blank file or by copying a sibling module. Copying a sibling propagates
+  whatever that sibling froze in: confirmed on nf-core/metatdenovo (2026-08-25) that copying
+  `format/gff2bed` carried over the older container guard
+  `workflow.containerEngine == 'singularity'`, which silently skips the Singularity image
+  under Apptainer, where the current template correctly generates
+  `workflow.containerEngine in ['singularity', 'apptainer']`.
+- **Keep the generated `tests/main.nf.test`, and use nf-core's naming, for local modules too.**
+  The CLI normalizes the component name to nf-core convention (lowercase, no underscores:
+  `format/locus_faa` becomes `format/locusfaa`, process `FORMAT_LOCUSFAA`) — take that name
+  rather than "matching" a badly-named existing sibling. User's explicit position
+  (2026-08-25): existing local modules in their own repos have been lax about both naming and
+  module-level tests, and that history is not a reason to keep adding to the debt. Where a
+  module test would otherwise need a fixture, construct the input inline in the test's
+  `process {}` block with Groovy rather than committing a fixture to the pipeline repo — that
+  keeps the no-test-data-in-the-pipeline-repo rule intact without skipping the test.
 
 ### Groovy GString pitfall: backtick + backslash-escape in a script comment corrupts later interpolations
 
