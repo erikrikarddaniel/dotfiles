@@ -112,6 +112,19 @@ Confirmed 2026-08-11 as a standing preference (came up reviewing nf-core/rnaspli
 #242), explicitly requested to apply in sessions rooted in any repo, not just the one it
 was first requested in.
 
+### Two operational notes on posting reviews via the API
+
+- **`gh api --method PUT .../pulls/N/reviews/{id}` replaces the review body wholesale.** It is not
+  an append. Inline comments survive, the body does not. Confirmed the hard way on
+  nf-core/rnasplice#245 (2026-08-25): adding a follow-up section silently wiped the original
+  findings. To extend a pending review, rebuild the full body text and PUT that.
+- **Two variants of a test with byte-identical snapshots is a coverage smell worth checking.** When
+  a PR adds a test specifically for a new option, diff the option-on and option-off snapshots. On
+  rnasplice#245 every md5 matched between the `ignore_tx_version` test and the plain one, which
+  turned "there is a test for this" into "that test cannot fail" — and explained how the option had
+  been a silent no-op for so long. Cheap to check, and it upgrades a vague "coverage looks thin"
+  into a concrete finding.
+
 ### Choosing the review verdict
 
 When the PR author is the maintainer of the code being reviewed, and the findings are real but
@@ -357,6 +370,28 @@ structure for later `nf-core modules update`/`nf-core subworkflows update` runs.
   `process {}` block with Groovy rather than committing a fixture to the pipeline repo — that
   keeps the no-test-data-in-the-pipeline-repo rule intact without skipping the test.
 
+### awk inside a Nextflow module: three traps, all silent
+
+Confirmed on nf-core/metatdenovo (2026-08-25, `FORMAT_LOCUSCONSOLIDATE`/`FORMAT_LOCUSFAA`).
+All three produced wrong output or a cryptic failure rather than an obvious error, and none
+was caught by testing the awk on the host.
+
+- **The container's awk is not your awk.** Modules run mawk/busybox awk; the host has gawk.
+  Verifying an awk program locally proves very little. `\x1f`-style hex escapes are not POSIX
+  and are mangled; use `SUBSEP` or an octal escape for a delimiter.
+- **`arr[k] = (k in arr) ? arr[k] SEP v : v` is broken in mawk.** mawk creates the target array
+  element *before* evaluating the right-hand side, so the `in` test is already true on the first
+  append and reads an empty string, silently prepending an empty member. gawk does not do this.
+  Always write it as an explicit `if (k in arr) ... else ...`, where the test is evaluated before
+  any assignment.
+- **An apostrophe anywhere in the awk program, comments included, ends the shell string.** The
+  program sits inside `awk '...'` in the module's script block, so a comment saying "the
+  collector's join" terminates it and yields `awk: Unexpected end of string` pointing at the
+  comment line. Same family as the backtick pitfall below. Grep new awk for `'` before running.
+
+Corollary: module-level `nf-test` cases earn their keep here specifically. Both of the first two
+were found by module tests running in the real container, after host verification had passed.
+
 ### Groovy GString pitfall: backtick + backslash-escape in a script comment corrupts later interpolations
 
 Confirmed on nf-core/magmap (2026-08-03, `COLLECT_STATS`, PR #222): a process's
@@ -508,3 +543,52 @@ The user prefers avoiding a full Nextflow process invocation for trivial file ma
 Nextflow's built-in channel operators run in the workflow's own orchestration process rather than being scheduled as a job — no container pull, no executor queueing, no per-task overhead — and are just as robust across local/HPC/cloud backends as `publishDir` itself, since they go through the same underlying file-handling machinery.
 `collectFile` (with a closure returning `[filename, content]` per item) is the established idiom for this in nf-core/metatdenovo specifically, already used twice in `workflows/metatdenovo.nf` for `_mqc.yaml` files before this preference was ever stated explicitly — reach for it (or a similar built-in operator) before reaching for a new or existing process/module just to reshape a file.
 Confirmed on nf-core/metatdenovo (2026-07-31): swapped an initially-proposed `cat/cat`-based rename for a `TRANSRATE.out.assemblies.collectFile { meta, csv -> [...] }` step instead, at the user's request, specifically to avoid the process invocation.
+
+### Nextflow process `template` files
+
+Keep in the toolbox as an alternative to either a long inline `script:` block or a
+separate, non-templated helper script: Nextflow's `template` directive lets a process's
+`script:` be `template 'my_script.sh'`, pointing at a file (by default under a
+`templates/` directory next to the module). Nextflow does bash-style `${var}`/`$var`
+substitution against the process's own scope (params, inputs, etc.) before running it —
+same variable access as an inline `script:` block gets, but as a real, separately
+syntax-highlighted/lintable file, without the ceremony of writing and wiring up a whole
+separate script-invocation module.
+
+Surfaced to the user 2026-08-27 via a PR review notification (they hadn't come across the
+feature before) as a good fit for cases currently handled by long inline script blocks or
+by a separate untemplated script file — worth proposing explicitly the next time either of
+those patterns comes up in a module, rather than defaulting to the status quo.
+
+### `nf-core-utils` plugin — potential replacement for the vendored boilerplate subworkflows
+
+Surfaced 2026-08-27 via nf-core/fetchngs#385 (author Maxime Garcia, long-standing nf-core
+core-team member; PR body disclosed "Generated by opencode / Verified by @maxulysse").
+`nf-core/nf-core-utils` (https://github.com/nf-core/nf-core-utils) is a real Nextflow
+plugin, not experimental — 6 releases since 2025-05, latest `0.5.0` (2026-05-22) — that
+replaces the three vendored subworkflows every nf-core pipeline currently carries
+(`utils_nfcore_pipeline`, `utils_nextflow_pipeline`, `utils_nfschema_plugin`) with plugin
+function includes (`include { completionEmail } from 'plugin/nf-core-utils'`, etc.). The
+fetchngs PR deleted 848 lines and added 158.
+
+**Not yet in nf-core's own pipeline template** (`nf-core pipelines create` doesn't wire it
+in as of 2026-08-27) — early-adopter territory, not yet the default. Real adoption beyond
+that one PR does exist though: nf-core/sarek (flagship, heavily maintained), rnavar,
+seqinspector, createpanelrefs.
+
+**Concretely relevant to this user's own pipelines** (phyloplace, magmap, metatdenovo,
+sativa): the plugin's `softwareVersionsToYAML(softwareVersions: channel.topic("versions"),
+nextflowVersion: workflow.nextflow.version)` replaces the hand-rolled
+`channel.topic("versions")` branch/groupTuple dance every one of these pipelines currently
+carries in its `workflows/<pipeline>.nf` — the same code responsible for two real bugs
+already hit and documented this session/earlier: the `groovy.json.JsonGenerator.Options is
+not defined` compile error (hit on phyloplace under old Nextflow, in the vendored
+`utils_nextflow_pipeline/main.nf`) and the backtick+backslash GString-corruption bug (hit
+on magmap's `COLLECT_STATS`, see the "Groovy GString pitfall" note above). Adopting the
+plugin would delete the buggy hand-rolled code rather than just working around it.
+`PIPELINE_INITIALISATION`'s internals also become visible/inline (`paramsHelp`,
+`paramsSummaryLog`, `validateParameters` called directly) instead of delegated into an
+opaque vendored subworkflow call.
+
+Worth raising as an option next time a template sync or a boilerplate-touching PR comes up
+on any of these pipelines — not yet attempted on any of them as of this note.
