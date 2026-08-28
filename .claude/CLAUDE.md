@@ -156,6 +156,36 @@ nf-core org membership generally grants): the state becomes `DISMISSED`, it stop
 block, and all inline comments remain in place.
 
 
+## Bibliographies in analysis projects (not Nextflow development)
+
+Projects scaffolded from `dltemplates` carry three `.bib` files, and each has its own job:
+
+- `grateful-refs.bib` — generated, not edited. The `grateful` package's `cite_packages()`
+  call writes it on the first render, listing the exact versions of the R packages used.
+- `tools.bib` — the shared library of tool and database citations, copied in at setup from
+  `~/dev/dltemplates/misc/tools.bib`. **Keys are the tool's own name** (`hmmer`, `gtdb`,
+  `prokka`, `infernal`, `blast`, `pdb`), deliberately, so they can be typed from memory.
+- `bibliography.bib` — everything else, i.e. the project's subject-matter references.
+
+Add freely to `tools.bib` for any tool or database that would recur across projects, then
+copy the file over `~/dev/dltemplates/misc/tools.bib` to keep the original synced and tell
+the user, who commits and pushes dltemplates. Something used only by one project goes in
+`bibliography.bib` instead.
+
+**Never write a bib entry from memory.** Fetch it. Publisher BibTeX via content negotiation
+is the quickest route and gives a complete author list:
+
+```sh
+curl -sLH "Accept: application/x-bibtex" "https://doi.org/10.1093/bioinformatics/btt509"
+```
+
+Confirmed 2026-08-28: a from-memory entry for a paper the user themselves co-authored had
+an invented title and the wrong author list, caught only by checking Crossref afterwards.
+Note also that deposited metadata is sometimes genuinely incomplete for older records —
+Berman et al. 2000 on the PDB comes back with a single author from both Crossref and the
+publisher — so read what comes back rather than pasting it blind. In that case RCSB's own
+current request is to cite Burley et al. instead, which is complete.
+
 ## nf-core pipeline repos (e.g. nf-core/ampliseq and similar)
 
 Most of what follows in this section describes the user's own conventions for pipelines
