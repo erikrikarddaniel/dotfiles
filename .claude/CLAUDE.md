@@ -89,6 +89,59 @@ Any claim resting on such a script inherits every shortcut taken to make the scr
 Where the evidence is thin, state the general risk rather than manufacturing a specific
 instance to illustrate it.
 
+## Nextflow: joining channels correctly (any Nextflow project, not nf-core-specific)
+
+Recurring category of real, production-hitting bugs — three separate instances across one
+week of nf-core/metatdenovo work (2026-08/09), each a different specific mistake but all the
+same underlying failure: combining two channels that need to correspond to the same logical
+entity without an explicit, key-based `.join()`.
+
+**The core rule:** whenever two channels must be paired 1:1 by identity (the same sample,
+the same batch, the same assembly), join them with `.join()` on a real key (typically
+`meta.id`) — never rely on positional/order-based pairing. Two separate channels handed to a
+process as separate inputs, or zipped via plain `.merge()`/manual indexing, are paired purely
+by *emission order*, not identity. That's a hidden trap because it usually "happens" to work
+in development (small inputs, low concurrency, everything finishes in submission order) and
+then silently breaks at production scale, because **process output emission order is not
+guaranteed to match input submission order once tasks run with any real concurrency** — a
+smaller/faster task can finish before a bigger, earlier-submitted one. This isn't a rare edge
+case; it's close to guaranteed once there are enough concurrent batches.
+
+Confirmed on nf-core/metatdenovo#495 (2026-09-06): `TRANSDECODER_PREDICT` took `ch_batches`
+and `TRANSDECODER_LONGORF.out.folder` as two separate positional process inputs (the latter a
+bare `path(...)`, no `meta` at all). On a real 82M-contig run, batch `contigs.1`'s fasta got
+paired with batch `contigs.78`'s LongOrfs output directory and crashed. Fix: `.join()` on an
+id recovered from the folder path itself, rather than touching the paired channels'
+positional order.
+
+**`.join()` has its own footgun, from the opposite direction:** it silently drops
+left-side items whose key has no match, and more dangerously, behaves unexpectedly when a key
+appears more than once on one side. Confirmed on nf-core/metatdenovo#466 (multi-ORF-caller
+work): a `.join()` against a channel keyed only by database name broke as soon as multiple
+callers could share one db name (a duplicate-key case) — fixed by switching to
+`.combine()` + `.filter()` instead of trying to force `.join()` to work. **Rule of thumb:
+`.join()` is only safe when the left channel is guaranteed at most one item per key; if it
+can have more, use `.combine()+.filter()`.** And the converse mistake also happened on the
+same pipeline (#463): `.combine()` was left *unkeyed* for a relationship that was actually
+always 1:1 (safe only by accident, because both sides happened to always be singletons) —
+should have been a keyed `.join()` from the start. When adding or reviewing a channel
+combination, explicitly ask "is this relationship 1:1, 1:many, or a deliberate cartesian
+broadcast?" and pick `.join()`, `.combine()+.filter()`, or plain `.combine()` accordingly —
+don't default to whichever operator happens to compile.
+
+**The testing lesson (just as important as the fix itself):** a test that only checks the
+happy path won't catch this, because the bug is inherently about *ordering under
+concurrency*, which small/simple test inputs won't naturally exhibit. Design tests to force
+the race deterministically rather than hoping to catch it by chance: use two (or more) batch
+inputs of deliberately very different size/cost (e.g. ~50-100x difference) so the smaller one
+reliably finishes first even though it's submitted second or later, and pin both tasks' cpu
+and memory requests down low (e.g. 1 cpu / 1 GB) so even a small, constrained CI runner
+actually runs them concurrently instead of serializing everything back into submission order.
+This turns a rare, hard-to-reproduce production race into a fast (~10s), deterministic red
+test. Confirmed working on nf-core/metatdenovo#495: two seeded-random DNA sequences (~150 kb
+vs ~2 kb) reproduced the exact same "cannot find directory" crash seen on the real run, on
+every single invocation.
+
 ## Posting PR code reviews (any repo)
 
 When reviewing someone else's PR (any repo, not nf-core-specific) and a finding maps to a
