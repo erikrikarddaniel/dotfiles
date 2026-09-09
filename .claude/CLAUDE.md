@@ -165,7 +165,7 @@ Confirmed 2026-08-11 as a standing preference (came up reviewing nf-core/rnaspli
 #242), explicitly requested to apply in sessions rooted in any repo, not just the one it
 was first requested in.
 
-### Two operational notes on posting reviews via the API
+### Operational notes on posting reviews via the API
 
 - **`gh api --method PUT .../pulls/N/reviews/{id}` replaces the review body wholesale.** It is not
   an append. Inline comments survive, the body does not. Confirmed the hard way on
@@ -177,6 +177,22 @@ was first requested in.
   turned "there is a test for this" into "that test cannot fail" — and explained how the option had
   been a silent no-op for so long. Cheap to check, and it upgrades a vague "coverage looks thin"
   into a concrete finding.
+- **A pending review's API-set body does not reliably survive the user submitting it through the
+  GitHub web UI, specifically when the review also carries at least one inline comment.** Confirmed
+  on nf-core/genomeassembler#221 (2026-09-09): posted a review via one `POST .../reviews` call
+  with both a `body` and an inline `comments` entry; when the user opened "Files changed" and clicked
+  Submit, the drafted body was gone from the "Finish your review" box and got replaced by whatever
+  short text the user typed in its place (their own summary, not mine) -- the inline comment itself
+  came through fine. Root cause not fully isolated (plausibly the dialog doesn't pre-fill the body
+  textarea once comments exist, so the user never sees there's already a body to keep), but the
+  mechanism doesn't matter much: **the body is not safe to treat as delivered until the review is
+  actually submitted.** Recoverable after the fact -- `PATCH`/`PUT .../reviews/{id}` still accepts a
+  new `body` on an already-submitted review (state is untouched, matches the "Choosing the review
+  verdict" note below) -- but that requires noticing the loss and asking the user to check. Better:
+  when a review has both a body and inline comments, also paste the body text as a plain chat message
+  so the user has something to copy into the submit box directly, rather than trusting the API-set
+  body to come through the UI unattended. The user's own suggestion (2026-09-09), adopted going
+  forward.
 
 ### Choosing the review verdict
 
@@ -257,8 +273,9 @@ repos (2026-08-04).
 Before considering any change ready / before a PR, run all of the following (the user often forgets the first one, so do it proactively):
 
 1. `prek run -a` — pre-commit hooks (prettier, trailing-whitespace, end-of-file-fixer, nextflow-lint). Available in the `nf-core` conda env if not on PATH (`conda activate nf-core`).
-2. `nf-core pipelines lint` (add `--release` when the PR targets `master`/`main`) — nf-core community pipeline-standards lint. Also in the `nf-core` conda env.
+2. `nf-core pipelines lint` (add `--release` when the PR targets `master`/`main`) — nf-core community pipeline-standards lint. Also in the `nf-core` conda env. (Not applicable to nf-core/modules component PRs — there is no pipeline to lint.)
 3. `nextflow lint .` — Nextflow "strict syntax" lint. Run it with two Nextflow versions: the minimum declared in the pipeline's `nextflow.config` (`nextflowVersion = '!>=X.Y.Z'`) and the latest available. Use `NXF_VER=<version> nextflow lint .` to target a version — confirmed (nf-core/magmap, minimum `25.10.4`) that `NXF_VER` actually downloads and switches to that exact binary (verify with `NXF_VER=<version> nextflow -version`), and `lint` exists well below 26.04 too — the earlier assumption that it's a 26.04+-only subcommand was wrong, no special-casing needed for older declared minimums.
+4. **Trim comments** — a dedicated re-read pass over every changed file (module `main.nf`s, workflow/subworkflow code, and `nf-test` files alike), specifically hunting for AI-narration-style comments: multi-line prose explaining what a change does or why at a length no human reviewer would write, restating something the code already makes obvious, or referencing the current task/PR/fix rather than a durable invariant. Cut or shrink these to a single line, or delete outright if the code is self-evident without them — matches the base "default to no comments, only for non-obvious WHY" rule, but called out here as its own explicit pass because it keeps getting missed otherwise. Two extra reasons this specific check earns a dedicated step rather than folding into general code review: (a) any `#`/`//` comment sitting inside a process's `script:`/`stub:` block is not just source noise — it's copied verbatim into the generated `.command.sh` a user (or reviewer) inspects at runtime, so bloat there is user-visible, not just repo-visible; (b) it recurs specifically because a first draft is often written or reviewed under time/context pressure, so it needs a genuinely separate pass, not just "try to remember while writing." Confirmed as a recurring issue (not a one-off) on nf-core/modules#12910 (2026-09-09, `sativaepang/*` modules): a maintainer review flagged exactly this, including two script-block comments that had leaked into `.command.sh`.
 
 **A new param needs its default in *two* places, and skipping the second one is a silent runtime bug, not just a lint nit.** `nextflow_schema.json`'s `"default"` is for validation/docs/`nf-core pipelines lint`'s own consistency check; it does **not** reliably backfill `params.<name>` at runtime on its own. The actual runtime default has to also be declared in `nextflow.config`'s top-level `params {}` block. Confirmed on nf-core/metatdenovo (2026-09-07, `--annotate_only_consolidated`): added the param to the schema only, `nf-core pipelines lint` correctly flagged both `nextflow_config`/`schema_params` as failing ("Default value ... not found in nextflow.config") — but the real cost was upstream of noticing that: a full ~5-minute nf-test pipeline run had already come back with the feature silently behaving as if it were `false` (schema said default `true`), because `params.annotate_only_consolidated` was genuinely `null` at runtime, not `true`. Adding the same default to `nextflow.config` fixed both the lint failure and the actual behavior in the same edit. Treat this lint check as load-bearing, not cosmetic — run `nf-core pipelines lint` (or at least eyeball `nextflow.config`'s `params {}` block) *before* spending time debugging a new param that "isn't doing anything," since that symptom is exactly this.
 
