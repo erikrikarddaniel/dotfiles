@@ -559,6 +559,20 @@ its inline-decompression branch never fires) — silently masked for the default
 `diamond` search mode since DIAMOND reads gzip natively, but a real bug for other modes.
 Straight to a PR fixing the comparison, no issue opened.
 
+**Changing an `eval(...)` version-extraction string in `main.nf` needs `meta.yml` updated
+in the same commit, or CI lint fails.** `nf-core modules lint`'s `correct_meta_outputs`/
+`correct_meta_topics` checks compare the eval expression recorded in `meta.yml`'s
+`output`/`topics` sections against `main.nf` verbatim — any edit to that string (even a
+pure simplification with identical runtime output) desyncs them. Fix with
+`nf-core modules lint <module> --fix` (regenerates `meta.yml` from `main.nf`), one module
+at a time — it doesn't accept multiple module args in one invocation. Confirmed on
+nf-core/modules#12910 (2026-09-09): simplified the version-eval one-liner across four
+`sativaepang/*` modules per review feedback, pushed, and CI lint failed on all four for
+this exact reason — should have run `nf-core modules lint --fix` (or at least eyeballed
+`meta.yml`) as part of the same change, matching the "new param needs its default in two
+places" lesson above (same shape: a change with a duplicate declaration site, only one of
+which throws if it's missed).
+
 ### Opening PRs (`gh pr create --web`)
 
 nf-core pipeline repos have a `.github/PULL_REQUEST_TEMPLATE.md` (instructions comment + checklist). Passing `--body` to `gh pr create` replaces it entirely, which loses the template. Instead, read the template file and build the body as **template content, then your description appended after it** (e.g. under a `## Description` heading) — don't just write your own body from scratch. This applies whether or not `--web` is used.
