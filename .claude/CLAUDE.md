@@ -275,7 +275,7 @@ Before considering any change ready / before a PR, run all of the following (the
 1. `prek run -a` — pre-commit hooks (prettier, trailing-whitespace, end-of-file-fixer, nextflow-lint). Available in the `nf-core` conda env if not on PATH (`conda activate nf-core`).
 2. `nf-core pipelines lint` (add `--release` when the PR targets `master`/`main`) — nf-core community pipeline-standards lint. Also in the `nf-core` conda env. (Not applicable to nf-core/modules component PRs — there is no pipeline to lint.)
 3. `nextflow lint .` — Nextflow "strict syntax" lint. Run it with two Nextflow versions: the minimum declared in the pipeline's `nextflow.config` (`nextflowVersion = '!>=X.Y.Z'`) and the latest available. Use `NXF_VER=<version> nextflow lint .` to target a version — confirmed (nf-core/magmap, minimum `25.10.4`) that `NXF_VER` actually downloads and switches to that exact binary (verify with `NXF_VER=<version> nextflow -version`), and `lint` exists well below 26.04 too — the earlier assumption that it's a 26.04+-only subcommand was wrong, no special-casing needed for older declared minimums.
-4. **Trim comments** — a dedicated re-read pass over every changed file (module `main.nf`s, workflow/subworkflow code, and `nf-test` files alike), specifically hunting for AI-narration-style comments: multi-line prose explaining what a change does or why at a length no human reviewer would write, restating something the code already makes obvious, or referencing the current task/PR/fix rather than a durable invariant. Cut or shrink these to a single line, or delete outright if the code is self-evident without them — matches the base "default to no comments, only for non-obvious WHY" rule, but called out here as its own explicit pass because it keeps getting missed otherwise. Two extra reasons this specific check earns a dedicated step rather than folding into general code review: (a) any `#`/`//` comment sitting inside a process's `script:`/`stub:` block is not just source noise — it's copied verbatim into the generated `.command.sh` a user (or reviewer) inspects at runtime, so bloat there is user-visible, not just repo-visible; (b) it recurs specifically because a first draft is often written or reviewed under time/context pressure, so it needs a genuinely separate pass, not just "try to remember while writing." Confirmed as a recurring issue (not a one-off) on nf-core/modules#12910 (2026-09-09, `sativaepang/*` modules): a maintainer review flagged exactly this, including two script-block comments that had leaked into `.command.sh`.
+4. **Trim comments** — a dedicated re-read pass over every changed file (module `main.nf`s, workflow/subworkflow code, and `nf-test` files alike), specifically hunting for AI-narration-style comments: multi-line prose explaining what a change does or why at a length no human reviewer would write, restating something the code already makes obvious, or referencing the current task/PR/fix rather than a durable invariant. Cut or shrink these to a single line, or delete outright if the code is self-evident without them. Where a comment survives the cut, rewrite it **forward-looking, not historical**: state the invariant/gotcha/constraint as a plain fact about the code as it stands today, not as a narration of what this change did or why this particular fix/PR needed it — strip framing like "added to fix #NNN" / "this now handles the case from issue #NNN" / "changed to do X instead of Y" even when short, and say what a future editor needs to know instead (what will break, and under what condition), with no task/issue/PR number at all. Historical framing rots the moment the number is meaningless out of that context and belongs in the commit message or PR description, not the source. This matches the base "default to no comments, only for non-obvious WHY" rule, but called out here as its own explicit pass because it keeps getting missed otherwise. Two extra reasons this specific check earns a dedicated step rather than folding into general code review: (a) any `#`/`//` comment sitting inside a process's `script:`/`stub:` block is not just source noise — it's copied verbatim into the generated `.command.sh` a user (or reviewer) inspects at runtime, so bloat there is user-visible, not just repo-visible; (b) it recurs specifically because a first draft is often written or reviewed under time/context pressure, so it needs a genuinely separate pass, not just "try to remember while writing." Confirmed as a recurring issue (not a one-off) on nf-core/modules#12910 (2026-09-09, `sativaepang/*` modules): a maintainer review flagged exactly this, including two script-block comments that had leaked into `.command.sh`. The forward-looking-not-historical framing was called out separately by the user (2026-09-10, nf-core/metatdenovo PR #504) after a first trim pass still left comments narrating "the #451 Unassigned_* files" and "left-join onto the same caller key" as if explaining a diff rather than describing the resulting code.
 
 **A new param needs its default in *two* places, and skipping the second one is a silent runtime bug, not just a lint nit.** `nextflow_schema.json`'s `"default"` is for validation/docs/`nf-core pipelines lint`'s own consistency check; it does **not** reliably backfill `params.<name>` at runtime on its own. The actual runtime default has to also be declared in `nextflow.config`'s top-level `params {}` block. Confirmed on nf-core/metatdenovo (2026-09-07, `--annotate_only_consolidated`): added the param to the schema only, `nf-core pipelines lint` correctly flagged both `nextflow_config`/`schema_params` as failing ("Default value ... not found in nextflow.config") — but the real cost was upstream of noticing that: a full ~5-minute nf-test pipeline run had already come back with the feature silently behaving as if it were `false` (schema said default `true`), because `params.annotate_only_consolidated` was genuinely `null` at runtime, not `true`. Adding the same default to `nextflow.config` fixed both the lint failure and the actual behavior in the same edit. Treat this lint check as load-bearing, not cosmetic — run `nf-core pipelines lint` (or at least eyeball `nextflow.config`'s `params {}` block) *before* spending time debugging a new param that "isn't doing anything," since that symptom is exactly this.
 
@@ -610,6 +610,37 @@ Key rules, extracted 2026-07-31:
   A PR with an approval but some unresolved minor questions can still merge once addressed to "common-sense" satisfaction — perfection isn't required.
   An abandoned re-review request can be merged after 3 months if a different reviewer gives an independent approval instead.
 - Component (module/subworkflow) review checklist, useful as a self-check before requesting review: bioconda dependency at latest version, all optional params routed through `$args`, correct gzip/bzip2/etc. choice for large outputs, tests for every output including optional ones, `meta.yml` has correct EDAM/bio.tools links, tool version-extraction command is optimised.
+
+### Pipeline release procedure
+
+The full nf-core pipeline release procedure is documented at
+https://nf-co.re/docs/developing/pipelines/release-procedure — the authoritative checklist to
+follow whenever the user says it's time to release any nf-core pipeline they maintain
+(magmap, metatdenovo, phyloplace, sativa, or any other). Confirmed global across their
+nf-core projects, not specific to any one pipeline (2026-07-28, nf-core/phyloplace) — this
+belongs here in global CLAUDE.md rather than in any one project's own memory, since
+per-project memory isn't visible from a different repo's session and a global process like
+this needs to be.
+
+Rough shape: pre-release issue triage, `nf-core pipelines lint --release`, CHANGELOG
+finalized (dated, no leftover placeholder PR numbers), version bump via
+`nf-core pipelines bump-version`, a dev→main (or dev→master, see below) release PR needing
+two reviews — via the `#release-review-trading` Slack channel, though this is often a direct
+one-for-one trade with another maintainer (e.g. reviewing their pending release PR in
+exchange) rather than posting and waiting for anyone to pick it up, confirmed
+nf-core/phyloplace#88 (2026-09-08) — tagging the GitHub release with the bare version (no
+`v` prefix), and finally bumping `dev` back to the next `X.Y.Zdev` version afterwards. Some
+of these repos' default/main branch is named `master` rather than `main` — substitute
+accordingly when the official doc says "main".
+
+**Before opening the release PR, do a final pass over every comment and doc in the repo**
+(not just files touched by the release's own PRs) — concise, to the point, clear, but with
+sufficient detail — in case anything slipped through an individual PR's own "Trim comments"
+pass (see above) or was never covered by one at all. A release is the last natural
+checkpoint before this becomes far more visible and permanent, and a per-PR trim only ever
+sees one diff at a time, so drift or a missed spot can sit unnoticed across several merges
+until now. Requested explicitly by the user (2026-09-10, nf-core/metatdenovo) as a
+release-time addition to the existing pre-PR "Trim comments" step above.
 
 ### Params flow in as explicit values, not read directly (magmap, metatdenovo, phyloplace, sativa — not ampliseq)
 
