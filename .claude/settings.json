@@ -1,7 +1,35 @@
 {
-  "model": "Sonnet",
+  "model": "sonnet",
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": true
   },
-  "theme": "light-ansi"
+  "theme": "light-ansi",
+  "autoMode": {
+    "environment": [
+      "### Org-wide",
+      "**Organization**: None configured",
+      "**Cloud provider(s)**: None configured",
+      "**Repository visibility**: assume private unless the remote host and repo name indicate otherwise, or a visibility check in the transcript shows public — not queryable via gh here (org/repo not derivable from the `git-sequoia:` remote), remote host suggests a self-hosted/private git server (`git-sequoia`), no evidence of public hosting",
+      "**Internal sharing / snippet hosting**: None configured — treat public paste/gist services as outside the trust boundary",
+      "**Secrets management**: None configured",
+      "**Default / protected branches**: not queryable here (gh visibility/branch-protection check did not run — origin remote is `git-sequoia:gtdb-annotate.git`, not a plain owner/repo host shape)",
+      "**CI/CD deploy targets**: None configured",
+      "**Network posture**: None configured",
+      "**Host containment**: None configured — assume Claude Code runs on an ordinary developer machine with open internet",
+      "**Source control**: The trusted repo (/data/dl/dev/gtdb-annotate) and its remote origin (git-sequoia:gtdb-annotate.git) only — no additional orgs configured",
+      "**Trusted internal domains**: None configured",
+      "**Trusted cloud buckets**: None configured",
+      "**Key internal services**: None configured",
+      "**Internal package registry**: None configured",
+      "**Sensitive data locations & audiences**: any file or store holding personal data, confidential business data, credentials, regulated data, or similarly sensitive material; preserve exact handles when known and share only with audiences cleared at the [named+specifics] bar",
+      "**Data retention / declassification**: None configured",
+      "**Sensitive remote targets**: any namespace, host, or container whose name carries `prod` or `production` as a whole word or name segment",
+      "**Protected deployment namespaces / environments**: None configured — fall back to the Sensitive remote targets heuristic",
+      "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything whose name or tag carries `prod` or `production` as a whole word or name segment",
+      "### User-specific",
+      "**Primary use of Claude Code**: software development — bioinformatics/Nextflow pipeline development (nf-core ecosystem: pipeline authoring, module/subworkflow scaffolding, template syncs, PR review) per ~/.claude/CLAUDE.md",
+      "**Trusted repo**: /data/dl/dev/gtdb-annotate (erikrikarddaniel/gtdb-annotate) and its remote origin (git-sequoia:gtdb-annotate.git)",
+      "**Org-specific CLIs**: nf-core CLI, nextflow, nf-test, prek (routine within this repo and other nf-core pipeline work per user's global CLAUDE.md; conda envs e.g. `nf-core` env commonly used for these tools)"
+    ]
+  }
 }
