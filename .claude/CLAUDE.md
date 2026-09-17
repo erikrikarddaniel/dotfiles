@@ -89,6 +89,74 @@ Any claim resting on such a script inherits every shortcut taken to make the scr
 Where the evidence is thin, state the general risk rather than manufacturing a specific
 instance to illustrate it.
 
+## Testing discriminator/classifier functions: cover the feature space, not just categories
+
+When writing tests for a function whose job is to classify or detect something (an `isX(...)`-style
+boolean helper), enumerate the actual signals the function inspects and test the cells of that
+truth table -- not just "one input per real-world category I can think of."
+
+A test only has diagnostic power if it can tell a plausible-but-wrong implementation from the
+correct one. Two tests can both stay green under either implementation if neither input lands on
+the specific combination where the two disagree. Before or right after writing a detector
+function, ask "what are the 2-4 boolean signals this actually branches on, and have I got one test
+per combination?" Then separately ask "would this suite fail if I'd used a simpler/wrong signal
+instead of the right one?" -- if not for every plausible wrong signal, there's a gap.
+
+Confirmed 2026-09-13 on nf-core/metatdenovo issue #508: wrote `isRawMetaeukGff(gff)` checking only
+for the substring `TCS_ID=`, with two tests -- "raw MetaEuk gff (no ID=, has TCS_ID=) -> gets
+normalised" and "generic gff (has ID=, no TCS_ID=) -> passed through". Both passed. An independent
+review then found the real bug: the pipeline's own normalisation step never removes `TCS_ID=`, it
+only prepends a new `ID=` in front of it -- so already-normalised output (`TCS_ID=` present AND
+`ID=` present) was misclassified as raw and reformatted a second time, crashing the exact
+resume-recovery scenario the feature existed for. The real feature space was a 2x2 matrix (has
+`TCS_ID=` x has `ID=`); both original tests lived in cells where "check for `TCS_ID=`" and "check
+for absence of `ID=`" happen to agree, so neither could have caught the divergence. Fix: detect on
+the presence of the thing that actually determines the right answer (`ID=`), not a signal merely
+correlated with it (`TCS_ID=`), and add the missing cell as its own test.
+
+Same underlying discipline as the "two variants of a test with byte-identical snapshots is a
+coverage smell" note below (rnasplice#245) -- there the smell was two tests that should have
+differed and didn't; here it's a suite that individually looked reasonable but never together
+spanned the axis the function actually needed to get right.
+
+## Review-worthiness signals, and reading vs. running to catch bugs
+
+**Two concrete signals for whether new work needs independent review, regardless of how small
+the diff looks:** (1) its data flows into a shared/vendored component with an implicit
+contract -- something not owned by this project, where the real constraints only surface by
+feeding it inputs and watching it fail; (2) it touches architecture already known to be
+intricate in this codebase (a multi-stage pipeline, a consolidation/aggregation chain, anything
+with its own history of subtle bugs). Neither signal depends on diff size -- a five-line change
+that plugs into either one is exactly as review-worthy as a five-hundred-line one. Name the risk
+*category* proactively when starting such work, rather than waiting to be asked "is this
+complex."
+
+**When a codebase has a documented fragile area, self-test new code against that same area
+before calling verification complete, rather than leaving it for a reviewer to catch what you
+already knew to look for.** Testing the common/happy path thoroughly does not substitute for
+deliberately exercising a mode already known to be weak.
+
+**When bugs do get caught, ask what actually caught them — reading harder, or running
+something — and let that shape where effort goes next time.** Confirmed 2026-09-10 reviewing
+nf-core/metatdenovo#504/#451 (a case that hit both signals above: new data flowing into a
+vendored module's undocumented column-schema contract, and touching the pipeline's
+caller-consolidation chain). Checked the actual review comments afterward rather than assuming:
+of 6 findings across two review rounds, 4 were pure static reasoning about the code and
+language semantics (no execution mentioned or needed), 1 came from the reviewer reading a test
+snapshot the PR author had already committed from their own earlier runs (not a fresh run by
+the reviewer), and only 1 involved the reviewer actually running something — and what they ran
+was a five-line isolated repro of one suspected expression, not the pipeline or even the test
+suite. Most of what got caught was catchable by tracing every actual *consumer's* contract
+(what schema does the third caller really produce?) rather than trusting the one path already
+tested — that's a reading discipline, not a testing one. The one finding that genuinely
+required *observing real data* rather than reading harder was an emergent side effect of a
+third-party library's internal sort behavior (R's `dplyr::summarise()` locale-dependent key
+ordering) -- not deducible from the calling code alone. Conclusion: when unsure whether
+something is a bug, the right first move is usually "isolate and run just the suspicious
+expression" (cheap, fast, decisive) rather than either "reason about it harder" or "run the
+whole pipeline" -- reserve full-scale runs for confirming the fix works end to end, not for
+initial bug-hunting.
+
 ## Nextflow: joining channels correctly (any Nextflow project, not nf-core-specific)
 
 Recurring category of real, production-hitting bugs — three separate instances across one
@@ -178,21 +246,34 @@ was first requested in.
   been a silent no-op for so long. Cheap to check, and it upgrades a vague "coverage looks thin"
   into a concrete finding.
 - **A pending review's API-set body does not reliably survive the user submitting it through the
-  GitHub web UI, specifically when the review also carries at least one inline comment.** Confirmed
-  on nf-core/genomeassembler#221 (2026-09-09): posted a review via one `POST .../reviews` call
+  GitHub web UI.** Originally suspected of needing at least one inline comment to trigger, but that
+  turned out to be too narrow a theory -- see the update below. Confirmed on
+  nf-core/genomeassembler#221 (2026-09-09): posted a review via one `POST .../reviews` call
   with both a `body` and an inline `comments` entry; when the user opened "Files changed" and clicked
   Submit, the drafted body was gone from the "Finish your review" box and got replaced by whatever
   short text the user typed in its place (their own summary, not mine) -- the inline comment itself
-  came through fine. Root cause not fully isolated (plausibly the dialog doesn't pre-fill the body
-  textarea once comments exist, so the user never sees there's already a body to keep), but the
-  mechanism doesn't matter much: **the body is not safe to treat as delivered until the review is
-  actually submitted.** Recoverable after the fact -- `PATCH`/`PUT .../reviews/{id}` still accepts a
-  new `body` on an already-submitted review (state is untouched, matches the "Choosing the review
-  verdict" note below) -- but that requires noticing the loss and asking the user to check. Better:
-  when a review has both a body and inline comments, also paste the body text as a plain chat message
-  so the user has something to copy into the submit box directly, rather than trusting the API-set
-  body to come through the UI unattended. The user's own suggestion (2026-09-09), adopted going
-  forward.
+  came through fine. **Update, confirmed on nf-core/genomeassembler#226 (2026-09-11): the same loss
+  happens on a body-only pending review with zero inline comments too** -- so the trigger is not
+  "has inline comments," it's something broader (plausibly just "submitting via the web UI" in
+  general). Treat this as an unconditional risk on every pending review posted via the API, not a
+  special case to reason about per-review. Root cause not fully isolated, but the mechanism doesn't
+  matter much: **the body is not safe to treat as delivered until the review is actually submitted.**
+  Recoverable after the fact -- `PATCH`/`PUT .../reviews/{id}` still accepts a new `body` on an
+  already-submitted review (state is untouched, matches the "Choosing the review verdict" note
+  below) -- but that requires noticing the loss and asking the user to check. Better: **always**
+  paste the full body text as a plain chat message too, regardless of whether the review has inline
+  comments, so the user has something to copy into the submit box directly rather than trusting the
+  API-set body to come through the UI unattended. The user's own suggestion (2026-09-09), broadened
+  2026-09-11 after the no-inline-comments case showed the original narrower framing was wrong.
+- **When pasting that body as backup, paste it verbatim in full — not a shortened chat summary.**
+  Confirmed 2026-09-11 on nf-core/modules#12912: pasted an abbreviated version in chat ("as above —
+  full detail in the posted review") instead of the exact text, on the assumption the full body was
+  already safely delivered via the API. The user then submitted through the UI, the body got lost
+  (this exact bug), and they'd only saved the abbreviated chat version — the real text had to be
+  recovered by re-reading the request file. An inline comment had also referred the reader to "the
+  review body" for a specific point, which no longer existed there once the body was lost, compounding
+  the problem. The backup paste only serves its purpose if it is the literal thing that needs to survive,
+  not a pointer to something else that might not.
 
 ### Choosing the review verdict
 
@@ -211,12 +292,44 @@ non-blocking and the author is the maintainer — say Approve with comments.
 Confirmed 2026-08-24 on nf-core/mag#1103, where the strongest finding had been empirically shown
 *not* to be broken.
 
+**Exception: when the author is confident enough in the code that an Approve risks being read as
+"good to merge, comments optional," a plain Comment can be the better call even though the
+author-is-maintainer/findings-are-non-blocking conditions above are both met.** "Approve with
+comments" is a merge-authorization signal as well as information; for most maintainers that's
+exactly right (they weigh the comments and merge when ready), but for one who's visibly invested
+in the code being correct, seeing "Approved" can read as "this checked out" and prompt merging
+before the comments — here, requests for more test coverage of specific edge cases — actually get
+addressed. Comment delivers the same findings without that authorization signal, so addressing them
+becomes something the author has to actively choose rather than something they can skip past.
+Confirmed 2026-09-10 on nf-core/rnasplice#273 (a PR whose own description already included the
+author's own extensive self-measurement of a subtle side effect, i.e. someone already deep in
+verifying this specific piece of code): the user chose Comment over the recommended Approve with
+comments specifically for this reason, stated explicitly ("to avoid that he merges by mistake when
+he's so keen on the code being correct"). Judging this requires reading how invested/confident the
+specific author seems in the specific PR, not just their maintainer status in the abstract — flag
+it as a live consideration when drafting the recommendation, but leave the final call to the user
+the same way CI-already-failing does above.
+
 Where those conditions don't hold — an external contribution, or blocking asks already
 outstanding from other reviewers — a plain **Comment** review is usually the better call than
 adding another block.
 It delivers the information without adding process to a PR that is already flagged as awaiting
 changes.
 Confirmed 2026-08-24 on nf-core/modules#12198.
+
+**Failing CI is itself already an implicit block — a demonstrated defect surfaced through a red
+CI check doesn't automatically need Request Changes on top of it.** Even a defect genuinely severe
+enough to otherwise call for Request Changes can go out as a plain Comment when CI is already red
+and the author (especially a core-team/experienced one) has presumably already seen the failure —
+the red check is doing the blocking, and a formal Request Changes is redundant process on top of
+it. Confirmed 2026-09-10 on nf-core/fetchngs#396 (a release PR, author a core-team member): drafted
+the review recommending Request Changes for a real, reproducible singularity-only regression traced
+to a dependency bump in the PR, but the user submitted it as Comment instead, reasoning that the
+already-failing CI made the formal block unnecessary. This is the user's call to make at submit
+time — when *drafting* a review with a genuinely demonstrated blocker, it's still right to name
+Request Changes as the recommended verdict rather than pre-empting this judgment call, but don't
+be surprised or second-guess if the user downgrades it to Comment specifically because CI is
+already failing.
 
 A submitted review's type cannot be changed afterwards; `PATCH .../reviews/{id}` edits only the
 body text, not the state.
@@ -259,7 +372,10 @@ current request is to cite Burley et al. instead, which is complete.
 
 Most of what follows in this section describes the user's own conventions for pipelines
 they maintain (nf-core/magmap, nf-core/metatdenovo, nf-core/phyloplace,
-nf-core/sativa) — not universal nf-core rules. When working in a pipeline repo maintained
+nf-core/taxmarker) — not universal nf-core rules. nf-core/taxmarker was renamed from
+nf-core/sativa (confirmed 2026-09-14) — older notes below citing "nf-core/sativa" describe
+that same pipeline under its former name; treat the two as identical. When working in a
+pipeline repo maintained
 by someone else (e.g. contributing a fix to nf-core/ampliseq or nf-core/mag), check that
 repo's own existing conventions (CHANGELOG entry order, commit/PR style, etc.) instead of
 assuming these apply — they may differ. The `nf-core pipelines lint`/`prek`/`nextflow
@@ -275,7 +391,7 @@ Before considering any change ready / before a PR, run all of the following (the
 1. `prek run -a` — pre-commit hooks (prettier, trailing-whitespace, end-of-file-fixer, nextflow-lint). Available in the `nf-core` conda env if not on PATH (`conda activate nf-core`).
 2. `nf-core pipelines lint` (add `--release` when the PR targets `master`/`main`) — nf-core community pipeline-standards lint. Also in the `nf-core` conda env. (Not applicable to nf-core/modules component PRs — there is no pipeline to lint.)
 3. `nextflow lint .` — Nextflow "strict syntax" lint. Run it with two Nextflow versions: the minimum declared in the pipeline's `nextflow.config` (`nextflowVersion = '!>=X.Y.Z'`) and the latest available. Use `NXF_VER=<version> nextflow lint .` to target a version — confirmed (nf-core/magmap, minimum `25.10.4`) that `NXF_VER` actually downloads and switches to that exact binary (verify with `NXF_VER=<version> nextflow -version`), and `lint` exists well below 26.04 too — the earlier assumption that it's a 26.04+-only subcommand was wrong, no special-casing needed for older declared minimums.
-4. **Trim comments** — a dedicated re-read pass over every changed file (module `main.nf`s, workflow/subworkflow code, and `nf-test` files alike), specifically hunting for AI-narration-style comments: multi-line prose explaining what a change does or why at a length no human reviewer would write, restating something the code already makes obvious, or referencing the current task/PR/fix rather than a durable invariant. Cut or shrink these to a single line, or delete outright if the code is self-evident without them. Where a comment survives the cut, rewrite it **forward-looking, not historical**: state the invariant/gotcha/constraint as a plain fact about the code as it stands today, not as a narration of what this change did or why this particular fix/PR needed it — strip framing like "added to fix #NNN" / "this now handles the case from issue #NNN" / "changed to do X instead of Y" even when short, and say what a future editor needs to know instead (what will break, and under what condition), with no task/issue/PR number at all. Historical framing rots the moment the number is meaningless out of that context and belongs in the commit message or PR description, not the source. This matches the base "default to no comments, only for non-obvious WHY" rule, but called out here as its own explicit pass because it keeps getting missed otherwise. Two extra reasons this specific check earns a dedicated step rather than folding into general code review: (a) any `#`/`//` comment sitting inside a process's `script:`/`stub:` block is not just source noise — it's copied verbatim into the generated `.command.sh` a user (or reviewer) inspects at runtime, so bloat there is user-visible, not just repo-visible; (b) it recurs specifically because a first draft is often written or reviewed under time/context pressure, so it needs a genuinely separate pass, not just "try to remember while writing." Confirmed as a recurring issue (not a one-off) on nf-core/modules#12910 (2026-09-09, `sativaepang/*` modules): a maintainer review flagged exactly this, including two script-block comments that had leaked into `.command.sh`. The forward-looking-not-historical framing was called out separately by the user (2026-09-10, nf-core/metatdenovo PR #504) after a first trim pass still left comments narrating "the #451 Unassigned_* files" and "left-join onto the same caller key" as if explaining a diff rather than describing the resulting code.
+4. **Trim comments** — a dedicated re-read pass over every changed file (module `main.nf`s, workflow/subworkflow code, and `nf-test` files alike), specifically hunting for AI-narration-style comments: multi-line prose explaining what a change does or why at a length no human reviewer would write, restating something the code already makes obvious, or referencing the current task/PR/fix rather than a durable invariant. Cut or shrink these to a single line, or delete outright if the code is self-evident without them. Where a comment survives the cut, rewrite it **forward-looking, not historical**: state the invariant/gotcha/constraint as a plain fact about the code as it stands today, not as a narration of what this change did or why this particular fix/PR needed it — strip framing like "added to fix #NNN" / "this now handles the case from issue #NNN" / "changed to do X instead of Y" even when short, and say what a future editor needs to know instead (what will break, and under what condition), with no task/issue/PR number at all. Historical framing rots the moment the number is meaningless out of that context and belongs in the commit message or PR description, not the source. This matches the base "default to no comments, only for non-obvious WHY" rule, but called out here as its own explicit pass because it keeps getting missed otherwise. Two extra reasons this specific check earns a dedicated step rather than folding into general code review: (a) any `#`/`//` comment sitting inside a process's `script:`/`stub:` block is not just source noise — it's copied verbatim into the generated `.command.sh` a user (or reviewer) inspects at runtime, so bloat there is user-visible, not just repo-visible; (b) it recurs specifically because a first draft is often written or reviewed under time/context pressure, so it needs a genuinely separate pass, not just "try to remember while writing." Confirmed as a recurring issue (not a one-off) on nf-core/modules#12910 (2026-09-09, `sativaepang/*` modules): a maintainer review flagged exactly this, including two script-block comments that had leaked into `.command.sh`. The forward-looking-not-historical framing was called out separately by the user (2026-09-10, nf-core/metatdenovo PR #504) after a first trim pass still left comments narrating "the #451 Unassigned_* files" and "left-join onto the same caller key" as if explaining a diff rather than describing the resulting code. Recurred a third time on nf-core/modules#12981/#12982 (2026-09-16/17, work from a phyloplace-track session): multi-paragraph comments explaining a SQL-injection fix and a nondeterministic-`.collect()`-order fix, in both `main.nf`s and their `nf-test` files — the underlying WHY was genuinely worth keeping (non-obvious security/ordering gotchas), only the length and diff-narration phrasing were the problem, trimmed to one or two lines each without losing the fact. The reviewer who flagged it (via Slack, not a GitHub review) also suggested adopting the `ponytail`/`caveman` Claude Code skills (https://github.com/DietrichGebert/ponytail) — these are agent-behavior skills/rulesets injected into context each turn (ponytail: write less code by default; caveman: write terser prose/explanations), not a mechanical lint/strip tool — worth evaluating as a proactive complement to this reactive trim-pass step. Installed 2026-09-17 (user: "Let's try both") via `claude plugin marketplace add <owner>/<repo>` + `claude plugin install <name>@<name>` (user scope, so active across every project) — deliberately *not* via either repo's raw curl-piped-to-bash installer script, and deliberately skipping caveman's separate "proxy" component (a standalone local process that intercepts/compresses agent↔API traffic, only offered by its shell installer, not the plugin marketplace) since it's unrelated to comment/prose terseness and adds real footprint for no benefit here. Not yet observed in practice whether either actually reduces comment bloat in real PR work — revisit this note once there's evidence either way.
 
 **A new param needs its default in *two* places, and skipping the second one is a silent runtime bug, not just a lint nit.** `nextflow_schema.json`'s `"default"` is for validation/docs/`nf-core pipelines lint`'s own consistency check; it does **not** reliably backfill `params.<name>` at runtime on its own. The actual runtime default has to also be declared in `nextflow.config`'s top-level `params {}` block. Confirmed on nf-core/metatdenovo (2026-09-07, `--annotate_only_consolidated`): added the param to the schema only, `nf-core pipelines lint` correctly flagged both `nextflow_config`/`schema_params` as failing ("Default value ... not found in nextflow.config") — but the real cost was upstream of noticing that: a full ~5-minute nf-test pipeline run had already come back with the feature silently behaving as if it were `false` (schema said default `true`), because `params.annotate_only_consolidated` was genuinely `null` at runtime, not `true`. Adding the same default to `nextflow.config` fixed both the lint failure and the actual behavior in the same edit. Treat this lint check as load-bearing, not cosmetic — run `nf-core pipelines lint` (or at least eyeball `nextflow.config`'s `params {}` block) *before* spending time debugging a new param that "isn't doing anything," since that symptom is exactly this.
 
@@ -595,6 +711,22 @@ route didn't work or explicitly asks for it done directly instead.
 
 Always include `--web` when running `gh pr create`, for any repo — it opens a pre-filled browser compose form the user must manually submit, giving them a final edit/review gate before the PR is actually filed, rather than filing it immediately via the API.
 
+### Direct pushes to upstream dev/master
+
+Always ask for explicit confirmation before running `git push upstream dev` (or any direct push to
+a pipeline's upstream `dev`/`master`, bypassing the "changes must be made through a pull request"
+branch rule) — even for commits that feel routine, like addressing review feedback on an
+already-open PR's head branch, the pre-merge release-date commit, or a post-release
+dev-version-bump commit. Stage and commit locally, then ask for a go-ahead before pushing — don't
+push and report after the fact.
+
+The user themselves pushes directly to `upstream/dev` often ("I certainly do pushes like this
+quite often", 2026-09-11, nf-core/phyloplace) and initially seemed fine with an agent doing the
+same without asking, but on reflection preferred to be asked first every time ("Yes, ask before
+pushing directly to upstream/dev") — the user doing something themselves without a second thought
+doesn't mean they want an agent doing it unprompted on their behalf. Applies across all of this
+user's pipeline repos (magmap, metatdenovo, phyloplace, taxmarker), not just the one it came up in.
+
 ### PR/review process specifications
 
 nf-core's formal review guidelines live at https://nf-co.re/docs/specifications/reviews/overview (an index page; the actual content is in its linked sub-pages).
@@ -616,7 +748,7 @@ Key rules, extracted 2026-07-31:
 The full nf-core pipeline release procedure is documented at
 https://nf-co.re/docs/developing/pipelines/release-procedure — the authoritative checklist to
 follow whenever the user says it's time to release any nf-core pipeline they maintain
-(magmap, metatdenovo, phyloplace, sativa, or any other). Confirmed global across their
+(magmap, metatdenovo, phyloplace, taxmarker, or any other). Confirmed global across their
 nf-core projects, not specific to any one pipeline (2026-07-28, nf-core/phyloplace) — this
 belongs here in global CLAUDE.md rather than in any one project's own memory, since
 per-project memory isn't visible from a different repo's session and a global process like
@@ -642,13 +774,23 @@ sees one diff at a time, so drift or a missed spot can sit unnoticed across seve
 until now. Requested explicitly by the user (2026-09-10, nf-core/metatdenovo) as a
 release-time addition to the existing pre-PR "Trim comments" step above.
 
-### Params flow in as explicit values, not read directly (magmap, metatdenovo, phyloplace, sativa — not ampliseq)
+**When drafting the GitHub release description, thank everyone who contributed code or
+reviewed a PR in this release cycle, except the user themselves.** Check the merged PRs
+since the last release (their authors and `@handle`s from any co-author trailers) and the
+approving/commenting reviewers on those PRs and on the release PR itself — a quick `gh pr
+list --state merged` / `gh api .../pulls/N/reviews` sweep across the CHANGELOG's PR links
+is enough. List names/handles the user themselves would recognize as having helped, skip
+the user's own contributions since they're the one publishing the release. Requested
+explicitly by the user (2026-09-10, nf-core/phyloplace) as an addition to the release
+procedure going forward, for any pipeline release.
+
+### Params flow in as explicit values, not read directly (magmap, metatdenovo, phyloplace, taxmarker — not ampliseq)
 
 `main.nf` should pass `params.*` values into `workflows/<pipeline>.nf` as explicit
 arguments (via its `take:` block), rather than `workflows/<pipeline>.nf` — or any
 subworkflow/module beneath it — reading `params.*` directly.
 Confirmed this applies to nf-core/magmap, nf-core/metatdenovo, nf-core/phyloplace, and
-nf-core/sativa.
+nf-core/taxmarker.
 nf-core/ampliseq is a known, deliberate exception that does *not* follow this pattern —
 don't assume it holds for every pipeline the user works on; check before applying it
 somewhere new.
@@ -678,7 +820,7 @@ Channels for the pipeline's raw inputs get created in one place: the
 It takes plain path/string params in via its `take:` block (e.g. `taxonomy`,
 `alignment`), turns them into channels there (`ch_taxonomy = channel.fromPath(taxonomy)`),
 and emits the channels for `main.nf` to pass on to `workflows/<pipeline>.nf`.
-Confirmed nf-core/sativa already does this (`subworkflows/local/utils_nfcore_sativa_pipeline/main.nf`).
+Confirmed nf-core/taxmarker already does this (`subworkflows/local/utils_nfcore_taxmarker_pipeline/main.nf`).
 Combined with the params-flow-as-values convention above: `main.nf` never touches a
 channel itself, `PIPELINE_INITIALISATION` is the one place raw params become channels,
 and everything downstream only ever receives already-built channels or plain values,
@@ -707,6 +849,44 @@ feature before) as a good fit for cases currently handled by long inline script 
 by a separate untemplated script file — worth proposing explicitly the next time either of
 those patterns comes up in a module, rather than defaulting to the status quo.
 
+**Two gotchas confirmed 2026-09-16 (nf-core/modules#12977, `raxmlng/taxonomytree`) converting
+an inline Python heredoc to a template file:**
+
+- **A topic-tagged `eval()` output only works when the process script is Bash.** The moment a
+  template's shebang isn't bash (`#!/usr/bin/env python3`, `Rscript`, etc.), Nextflow hard-errors:
+  `Process output of type 'eval' is only allowed with Bash process scripts`. If the module
+  previously reported its tool version via `eval("tool --version | ...")`, switch instead to a
+  plain `versions.yml` file **written by the template itself**, declared as
+  `path "versions.yml", emit: versions_x, topic: versions` — this still merges into the same
+  `channel.topic("versions")` stream downstream, exactly like an eval-based one does. Confirmed
+  precedent already in nf-core/modules: `bff`'s own R template does exactly this.
+- **A `def` variable computed in the `script:` block (e.g. `def prefix = task.ext.prefix ?:
+  "${meta.id}"`) is invisible inside the template file, for any interpreter.** Referencing it as
+  `${prefix}` in the template fails with `No such property 'prefix'`. Compute it directly inside
+  the template from the raw task bindings instead, e.g. (Python):
+  `prefix = "${meta.id}" if "${task.ext.prefix}" == "null" else "${task.ext.prefix}"` — matching
+  the convention nf-core's own `dupradar` R template already uses
+  (`output_prefix = ifelse('$task.ext.prefix' == 'null', '$meta.id', '$task.ext.prefix')`).
+
+### Nextflow: `stageAs` to control an input's staged name directly
+
+When a process needs its input file/directory staged under a specific, known name — rather than
+whatever name the upstream process happened to emit — declare it with `path(x, stageAs: "name")`
+instead of writing a script-level `mv`/rename as the first step. Nextflow stages the input under
+that literal name before the script ever runs, so the script can just reference `"name"` (or
+`input`, or whatever was chosen) directly.
+
+Concretely useful for the "private writable copy of a directory I'm about to mutate" pattern
+(the fix for the nf-core/modules#12799-class `-resume`-breaking bug, where writing into a plain
+staged symlink mutates an upstream task's own output): `path(taskdir, stageAs: "input")` stages
+the pristine upstream directory as `input`, and the script builds its own writable copy from
+`input/...` without an initial `mv "$taskdir" "${taskdir}.orig"` step to free up the original
+name first. Confirmed 2026-09-16 on nf-core/modules#12910 (`sativaepang/looplace`, review
+suggestion from SPPearce) — removed the script's own `mv`, re-verified the pristine-input-never-
+mutated guarantee still holds (staged a read-only fixture through the same restaging logic
+standalone) and that every real (non-stub) test snapshot stayed byte-identical to before the
+change.
+
 ### `nf-core-utils` plugin — potential replacement for the vendored boilerplate subworkflows
 
 Surfaced 2026-08-27 via nf-core/fetchngs#385 (author Maxime Garcia, long-standing nf-core
@@ -724,7 +904,7 @@ that one PR does exist though: nf-core/sarek (flagship, heavily maintained), rna
 seqinspector, createpanelrefs.
 
 **Concretely relevant to this user's own pipelines** (phyloplace, magmap, metatdenovo,
-sativa): the plugin's `softwareVersionsToYAML(softwareVersions: channel.topic("versions"),
+taxmarker): the plugin's `softwareVersionsToYAML(softwareVersions: channel.topic("versions"),
 nextflowVersion: workflow.nextflow.version)` replaces the hand-rolled
 `channel.topic("versions")` branch/groupTuple dance every one of these pipelines currently
 carries in its `workflows/<pipeline>.nf` — the same code responsible for two real bugs

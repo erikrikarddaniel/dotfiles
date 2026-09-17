@@ -1,7 +1,56 @@
 {
-  "model": "Sonnet",
+  "model": "sonnet",
   "enabledPlugins": {
-    "frontend-design@claude-plugins-official": true
+    "frontend-design@claude-plugins-official": true,
+    "ponytail@ponytail": true,
+    "caveman@caveman": true
   },
-  "theme": "light-ansi"
+  "extraKnownMarketplaces": {
+    "ponytail": {
+      "source": {
+        "source": "github",
+        "repo": "DietrichGebert/ponytail"
+      }
+    },
+    "caveman": {
+      "source": {
+        "source": "github",
+        "repo": "JuliusBrussee/caveman"
+      }
+    }
+  },
+  "theme": "light-ansi",
+  "autoMode": {
+    "soft_deny": [
+      "$defaults",
+      "Bash(git push upstream dev:*)",
+      "Bash(git push upstream master:*)"
+    ],
+    "environment": [
+      "### Org-wide",
+      "**Organization**: None configured",
+      "**Cloud provider(s)**: None configured",
+      "**Repository visibility**: PUBLIC — erikrikarddaniel/nf-core-magmap (origin) is public on GitHub; upstream nf-core/magmap is also a public nf-core project repo",
+      "**Internal sharing / snippet hosting**: None configured — treat public paste/gist services as outside the trust boundary",
+      "**Secrets management**: CI secret names referenced in this repo's workflows (values not exposed): BSKY_IDENTIFIER, BSKY_PASSWORD, GITHUB_TOKEN, MASTODON_ACCESS_TOKEN, NFSLACK_BOT_TOKEN, TOWER_ACCESS_TOKEN — treat these as credential identifiers only, never values to print or exfiltrate",
+      "**Default / protected branches**: Default branch is `dev`; gh reports no rulesets and no protected branches listed for erikrikarddaniel/nf-core-magmap — but per nf-core convention (documented in this repo's own CLAUDE.md notes) direct pushes to upstream `dev`/`master` require explicit user confirmation before pushing, treat both as sensitive push targets regardless of what gh shows",
+      "**CI/CD deploy targets**: None configured beyond this repo's own GitHub Actions (nf-test, linting) and Seqera Platform / AWS full-size CI referenced in README badges — no separate cloud deploy target confirmed",
+      "**Network posture**: None configured",
+      "**Host containment**: None configured — assume Claude Code runs on an ordinary developer machine with open internet",
+      "**Source control**: Trusted repo and its remotes only — origin (github.com/erikrikarddaniel/nf-core-magmap) and upstream (github.com/nf-core/magmap)",
+      "**Trusted internal domains**: None configured",
+      "**Trusted cloud buckets**: None configured",
+      "**Key internal services**: None configured",
+      "**Internal package registry**: None configured — this pipeline uses public Bioconda/Docker/Singularity containers and the public nf-core/modules registry",
+      "**Sensitive data locations & audiences**: any file or store holding personal data, confidential business data, credentials, regulated data, or similarly sensitive material; preserve exact handles when known and share only with audiences cleared at the [named+specifics] bar",
+      "**Data retention / declassification**: None configured",
+      "**Sensitive remote targets**: any namespace, host, or container whose name carries `prod` or `production` as a whole word or name segment",
+      "**Protected deployment namespaces / environments**: None configured — fall back to the Sensitive remote targets heuristic",
+      "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything whose name or tag carries `prod` or `production` as a whole word or name segment",
+      "### User-specific",
+      "**Primary use of Claude Code**: software development — nf-core Nextflow pipeline development (nf-core/magmap) and related PR/code-review workflows",
+      "**Trusted repo**: /home/daluab/dev/nf-core-magmap, remotes origin (erikrikarddaniel/nf-core-magmap, public) and upstream (nf-core/magmap, public) — since both are public, only this repo's own work belongs here; content ported from other repos/sessions is not this repo's own work",
+      "**Org-specific CLIs**: nf-core CLI, nf-test, prek — used routinely for pipeline linting, testing, and template syncs in this repo"
+    ]
+  }
 }
