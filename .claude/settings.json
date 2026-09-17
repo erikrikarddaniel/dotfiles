@@ -1,10 +1,31 @@
 {
   "model": "sonnet",
   "enabledPlugins": {
-    "frontend-design@claude-plugins-official": true
+    "frontend-design@claude-plugins-official": true,
+    "ponytail@ponytail": true,
+    "caveman@caveman": true
+  },
+  "extraKnownMarketplaces": {
+    "ponytail": {
+      "source": {
+        "source": "github",
+        "repo": "DietrichGebert/ponytail"
+      }
+    },
+    "caveman": {
+      "source": {
+        "source": "github",
+        "repo": "JuliusBrussee/caveman"
+      }
+    }
   },
   "theme": "light-ansi",
   "autoMode": {
+    "soft_deny": [
+      "$defaults",
+      "Bash(git push upstream dev:*)",
+      "Bash(git push upstream master:*)"
+    ],
     "environment": [
       "### Org-wide",
       "**Organization**: None configured",
