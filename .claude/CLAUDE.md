@@ -395,6 +395,16 @@ Before considering any change ready / before a PR, run all of the following (the
 
 **A new param needs its default in *two* places, and skipping the second one is a silent runtime bug, not just a lint nit.** `nextflow_schema.json`'s `"default"` is for validation/docs/`nf-core pipelines lint`'s own consistency check; it does **not** reliably backfill `params.<name>` at runtime on its own. The actual runtime default has to also be declared in `nextflow.config`'s top-level `params {}` block. Confirmed on nf-core/metatdenovo (2026-09-07, `--annotate_only_consolidated`): added the param to the schema only, `nf-core pipelines lint` correctly flagged both `nextflow_config`/`schema_params` as failing ("Default value ... not found in nextflow.config") — but the real cost was upstream of noticing that: a full ~5-minute nf-test pipeline run had already come back with the feature silently behaving as if it were `false` (schema said default `true`), because `params.annotate_only_consolidated` was genuinely `null` at runtime, not `true`. Adding the same default to `nextflow.config` fixed both the lint failure and the actual behavior in the same edit. Treat this lint check as load-bearing, not cosmetic — run `nf-core pipelines lint` (or at least eyeball `nextflow.config`'s `params {}` block) *before* spending time debugging a new param that "isn't doing anything," since that symptom is exactly this.
 
+### `conf/test*.config` header must name its own profile
+
+Every `conf/test*.config` carries a "Use as follows:" line in its header comment.
+That line has to name the profile the file actually defines, e.g. `-profile test_gzipped,<docker/singularity>` in `conf/test_gzipped.config` — not the `-profile test,...` that gets copied along when a new test config is started from an existing one.
+Nothing lints this, so a wrong one survives indefinitely and tells a reader to run a different test than the file describes.
+
+Check it whenever adding a test config, and when touching an existing one sweep the whole directory rather than fixing the single file in hand: `grep -n 'Use as follows' -A1 conf/test*.config`.
+Confirmed 2026-09-18 on nf-core/phyloplace, where the user spotted it in a newly added `conf/test_gzipped.config` and asked for it as a standing rule — a sweep then found **9 of 12** test configs wrong, most of them long-standing.
+Applies to any nf-core pipeline repo, not just this user's own.
+
 ### Test data
 
 Pipeline repos should carry **no test data of their own** — no fixture files committed
@@ -660,6 +670,25 @@ gunzip its own input at the top of the script and gzip its own output at the bot
 pattern nf-core's own `eggnogmapper` module already uses for its input. This does mean
 the patched module can no longer realistically be proposed upstream as-is later.
 
+### Verify module tests at the Nextflow version CI pins, not the local default
+
+nf-core/modules CI runs nf-test on an older Nextflow than a dev box usually has, and the older
+version is stricter in places, so a test can pass locally and fail in CI for reasons that have
+nothing to do with the change.
+Run the affected module suites with `NXF_VER=<ci version>` before pushing; take the version from
+the failing job's log (it prints `N E X T F L O W  ~  version X.Y.Z`).
+
+Confirmed 2026-09-18 on nf-core/modules#12991: a new `gappa/examineassign` test omitted the
+`params { module_args = ... }` block that its `tests/nextflow.config` requires
+(`ext.args = params.module_args`).
+Nextflow 26.04.6 tolerated the undefined param; 25.10.2, which CI pins, failed the whole config
+with `Unknown config attribute process.withName:GAPPA_EXAMINEASSIGN.params.module_args`.
+All three profiles (conda, docker, singularity) failed identically, which is itself the signal
+that a failure is the test rather than the container engine.
+
+Related habit worth keeping: when adding a test beside existing ones, copy their `when` block's
+`params`/`config` scaffolding, not just their `process` block.
+
 ### Contributing fixes back to nf-core/modules
 
 When a real bug is found in a vendored nf-core/modules component while working in a
@@ -755,7 +784,7 @@ per-project memory isn't visible from a different repo's session and a global pr
 this needs to be.
 
 Rough shape: pre-release issue triage, `nf-core pipelines lint --release`, CHANGELOG
-finalized (dated, no leftover placeholder PR numbers), version bump via
+finalized (no leftover placeholder PR numbers; the date comes later, see below), version bump via
 `nf-core pipelines bump-version`, a dev→main (or dev→master, see below) release PR needing
 two reviews — via the `#release-review-trading` Slack channel, though this is often a direct
 one-for-one trade with another maintainer (e.g. reviewing their pending release PR in
@@ -764,6 +793,23 @@ nf-core/phyloplace#88 (2026-09-08) — tagging the GitHub release with the bare 
 `v` prefix), and finally bumping `dev` back to the next `X.Y.Zdev` version afterwards. Some
 of these repos' default/main branch is named `master` rather than `main` — substitute
 accordingly when the official doc says "main".
+
+**The CHANGELOG release date is set last, as a direct push to `upstream/dev` just before
+merging the approved release PR — not while preparing the release.** Leave
+`## vX.Y.Z - [yyyy-mm-dd]` as the literal placeholder through the version-bump PR and through
+opening the `dev`→`master` PR, and say in that PR's body that the date will follow. A release
+almost never completes the day it is started: the release PR needs two approvals traded via
+`#release-review-trading`, which routinely takes days, so a date set early is simply wrong by
+the time it merges. Once the approvals are in, push the "Set release date for vX.Y.Z" commit
+straight to `upstream/dev` — this is one of the direct pushes the rule above covers, so ask
+first — then merge `dev`→`master`.
+
+Confirmed twice on nf-core/phyloplace: the user's own words during 2.2.0 (2026-09-08) were "I
+usually wait with the date and set it just before merging the approved main PR. Seldom happens
+the same day as I prepare it", after I pre-emptively pushed the date right after the
+version-bump PR merged; and again 2026-09-18 preparing 2.3.0, when I listed dating the
+CHANGELOG as an early step and the user pointed out it should already be known. Applies to
+every pipeline release, not one repo.
 
 **Before opening the release PR, do a final pass over every comment and doc in the repo**
 (not just files touched by the release's own PRs) — concise, to the point, clear, but with
