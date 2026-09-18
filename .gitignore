@@ -1,3 +1,6 @@
 # Never commit credentials, session state, or local overrides
 .claude/settings.local.json
+# Claude Code rewrites this file wholesale on any settings change, so the live
+# copy is machine state; the versioned template is .claude/settings.example.json
+.claude/settings.json
 .claude/.credentials.json

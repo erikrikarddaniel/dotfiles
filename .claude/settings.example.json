@@ -1,5 +1,9 @@
 {
   "model": "sonnet",
+  "statusLine": {
+    "type": "command",
+    "command": "echo \"$(bash \"$HOME/.claude/plugins/cache/ponytail/ponytail/4.10.0/hooks/ponytail-statusline.sh\") $(bash \"$HOME/.claude/plugins/cache/caveman/caveman/2.7.0/src/hooks/caveman-statusline.sh\")\""
+  },
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": true,
     "ponytail@ponytail": true,
@@ -20,10 +24,6 @@
     }
   },
   "theme": "light-ansi",
-  "statusLine": {
-    "type": "command",
-    "command": "echo \"$(bash \"$HOME/.claude/plugins/cache/ponytail/ponytail/4.10.0/hooks/ponytail-statusline.sh\") $(bash \"$HOME/.claude/plugins/cache/caveman/caveman/2.7.0/src/hooks/caveman-statusline.sh\")\""
-  },
   "autoMode": {
     "soft_deny": [
       "$defaults",
