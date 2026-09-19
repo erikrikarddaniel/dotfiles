@@ -405,6 +405,36 @@ Check it whenever adding a test config, and when touching an existing one sweep 
 Confirmed 2026-09-18 on nf-core/phyloplace, where the user spotted it in a newly added `conf/test_gzipped.config` and asked for it as a standing rule — a sweep then found **9 of 12** test configs wrong, most of them long-standing.
 Applies to any nf-core pipeline repo, not just this user's own.
 
+### Docs pages: extra pages go under `docs/usage/`, cross-doc links stay relative
+
+**A `docs/*.md` file only gets a page on nf-co.re if its path contains the substring `usage` or `output`.**
+Source: `nf-core/website`, `sites/main-site/src/components/octokit.js`, `getDocFiles`:
+
+```js
+file.type === "file" && file.name.includes(".md") &&
+  (file.path.includes("output") || file.path.includes("usage"))
+```
+
+That result becomes `release.doc_files` in `pipelines.json`, which `sites/main-site/utils/loaders.ts` iterates to generate routes.
+A file missing the test never reaches the loader, so no route exists and the URL 404s — while rendering perfectly on GitHub, which is where docs get reviewed.
+Silent failure, nothing warns, and `nf-core pipelines lint` does not check it.
+
+So: **put any extra documentation page under `docs/usage/`**, which is the established convention — 50 such files across ~12 pipelines (nf-core/mag's `docs/usage/resource_guidance.md` and `docs/usage/new_to_mag.md`, plus airrflow, oncoanalyser, proteinfold, crisprseq, methylseq, bactmap, createtaxdb, denovotranscript, differentialabundance, multiplesequencealign).
+The site builds those pages and gives a section a left sidebar automatically once it holds more than one file.
+Don't try to fix a missing page by editing `docs/README.md`: it is template-managed, any change fails `nf-core pipelines lint`'s `files_unchanged` check, and it does not drive publication anyway.
+
+Confirmed 2026-09-19 on nf-core/metatdenovo#493/#528: `docs/large_datasets.md` had been unreachable on the website since it was added, with six links pointing at it from `docs/usage.md`.
+Fixed by moving it to `docs/usage/large_datasets.md`.
+Filed upstream as nf-core/website#4408 — note a blanket "publish everything under `docs/`" is *not* the fix, since a survey of all 144 active pipelines found ~20 internal planning documents (`development_plan.md`, `retreat-brainstrorming.md`, `abstracts/*.md`, …) that would then go public.
+
+**Cross-doc links between a pipeline's own docs pages use the plain relative `page.md#anchor` form**, e.g. `[Resource guidance](usage/resource_guidance.md)` or `[the usage documentation](usage.md#some-anchor)`.
+The site rewrites these at build time into version-preserving URLs, so a reader on `/dev/` stays on `/dev/` and one on `/2.1.0/` stays on `/2.1.0/`, and the same source still renders correctly on GitHub.
+Resolved by nf-core/website#4385 (merged 2026-09-02, fixing website#4384); adopted in nf-core/phyloplace#84, which replaced the absolute-URL workaround from phyloplace#79.
+
+These stay **absolute**: the parameters page (`https://nf-co.re/<pipeline>/parameters`, generated from `nextflow_schema.json`, so no markdown source and no relative form exists), the results page and anything else outside `docs/`, the `:warning: Please read this documentation on the nf-core website` banner at the top of `docs/usage.md` (template boilerplate whose whole job is to move a reader off GitHub), and links in `README.md`/`docs/CONTRIBUTING.md`, which are read mostly on GitHub.
+
+Why relative is preferred: an absolute `nf-co.re/<pipeline>/<page>` link always resolves to the **released** docs, so an anchor for a section that exists only on `dev` returns 200 and silently drops the reader at the top of the page with no jump — a worse failure than a visible 404, because nobody reports it.
+
 ### Test data
 
 Pipeline repos should carry **no test data of their own** — no fixture files committed
