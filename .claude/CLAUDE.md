@@ -814,6 +814,17 @@ straight after the investigation reads like the investigation.
 Commit messages are the place for the detail that gets cut here: they are durable, greppable, and
 attached to the code rather than to a review thread.
 
+**Short is not the same as clear, and the same test applies to code comments.**
+State the invariant that breaks before tracing the mechanism that breaks it, keep one idea per
+sentence, and do not stack qualifying clauses onto a sentence that already carries the point.
+A reader who does not already know the code cannot hold a four-clause sentence about a sweep they
+have never seen.
+Confirmed 2026-09-20 on nf-core/metatdenovo#535: the PR description and two comments were called
+"quite hard to understand", with verbosity named as only part of the problem.
+Rewriting them meant leading with "every ORF should belong to exactly one locus" and only then
+describing how a spliced gene ended up in two, rather than narrating the sweep first and leaving
+the reader to infer the rule.
+
 ### Direct pushes to upstream dev/master
 
 Always ask for explicit confirmation before running `git push upstream dev` (or any direct push to
