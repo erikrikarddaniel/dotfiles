@@ -819,11 +819,17 @@ State the invariant that breaks before tracing the mechanism that breaks it, kee
 sentence, and do not stack qualifying clauses onto a sentence that already carries the point.
 A reader who does not already know the code cannot hold a four-clause sentence about a sweep they
 have never seen.
-Confirmed 2026-09-20 on nf-core/metatdenovo#535: the PR description and two comments were called
-"quite hard to understand", with verbosity named as only part of the problem.
-Rewriting them meant leading with "every ORF should belong to exactly one locus" and only then
-describing how a spliced gene ended up in two, rather than narrating the sweep first and leaving
-the reader to infer the rule.
+**Open a bug description with two short sentences: the rule, then the violation.**
+No jargon, no mechanism, nothing a reader has to already know.
+The user's stated target, 2026-09-20 on nf-core/metatdenovo#535 ("what we should aim for"):
+
+> Every ORF should belong to exactly one locus. A spliced gene could end up in two.
+
+Everything else -- which component, which code path, what the user sees -- comes after those two
+sentences, and each part gets its own short paragraph or bullet.
+That PR's description and two of its comments had first been called "quite hard to understand",
+with verbosity named as only part of the problem: the original narrated the sweep first and left
+the reader to infer the rule it broke.
 
 ### Direct pushes to upstream dev/master
 
