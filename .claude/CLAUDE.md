@@ -790,8 +790,19 @@ sub-headings, anything restating what the diff already shows, and any framing of
 story ("first I tried X, which did not reproduce, so then...").
 A number belongs in the description only when the reviewer needs it to judge the change — one
 measured figure inline beats a table.
-Keep the linked issue, the CHANGELOG note (including a deliberate *absence* of one, with the
-reason), and anything about how to deploy or resume from the change.
+Keep the linked issue, and the CHANGELOG note (including a deliberate *absence* of one, with the
+reason).
+
+**Cut the private run a bug was found on, too.** Which machine, which dataset, which fork branch,
+and how to resume that particular run are the user's operational context, not a reviewer's.
+A reviewer needs the mechanism and the evidence that the fix works, and cannot check any of the
+rest.
+Describe the failure as a property of the code — what input triggers it, what goes wrong — rather
+than as an incident.
+Measurements taken on private data still belong when they size the problem; give the figure
+without the provenance.
+Confirmed 2026-09-20 on nf-core/metatdenovo#535, where the user stripped those specifics before
+filing: "Not needed for a reviewer."
 
 Confirmed 2026-09-20 on nf-core/metatdenovo: a reviewer pushed back on an overly verbose PR
 description.
