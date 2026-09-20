@@ -770,6 +770,39 @@ route didn't work or explicitly asks for it done directly instead.
 
 Always include `--web` when running `gh pr create`, for any repo — it opens a pre-filled browser compose form the user must manually submit, giving them a final edit/review gate before the PR is actually filed, rather than filing it immediately via the API.
 
+### Keep PR descriptions short
+
+A PR description is read by a reviewer deciding whether to approve, not by someone
+reconstructing the investigation.
+Write the shortest thing that lets them do that, and put the rest in the commit message, where it
+belongs and where nobody has to scroll past it.
+
+Aim for something a reviewer reads in under a minute:
+
+- **What was wrong**, in one or two sentences, and the symptom if there is a short one (an error
+  line, a wrong value).
+- **Why**, in one or two sentences — the actual mechanism, not the path taken to find it.
+- **What changed**, as the change itself, not a walkthrough of the diff.
+- **How it was verified**, as a list of what was run, not a narrative of each run.
+
+Cut by default: before/after benchmark tables, sample input data, quoted code, per-finding
+sub-headings, anything restating what the diff already shows, and any framing of the work as a
+story ("first I tried X, which did not reproduce, so then...").
+A number belongs in the description only when the reviewer needs it to judge the change — one
+measured figure inline beats a table.
+Keep the linked issue, the CHANGELOG note (including a deliberate *absence* of one, with the
+reason), and anything about how to deploy or resume from the change.
+
+Confirmed 2026-09-20 on nf-core/metatdenovo: a reviewer pushed back on an overly verbose PR
+description.
+The user asked for concise ones from the start rather than editing them down at submit time.
+The same discipline as the "Trim comments" pass under nf-core pipeline repos, applied to the PR
+body — and for the same reason, it needs to be a deliberate step, because a first draft written
+straight after the investigation reads like the investigation.
+
+Commit messages are the place for the detail that gets cut here: they are durable, greppable, and
+attached to the code rather than to a review thread.
+
 ### Direct pushes to upstream dev/master
 
 Always ask for explicit confirmation before running `git push upstream dev` (or any direct push to
