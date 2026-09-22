@@ -285,6 +285,10 @@ was first requested in.
   review body" for a specific point, which no longer existed there once the body was lost, compounding
   the problem. The backup paste only serves its purpose if it is the literal thing that needs to survive,
   not a pointer to something else that might not.
+- **Put that backup paste inside a fenced code block (four backticks, `markdown` tag), not as rendered
+  prose.** Copying rendered chat text drops the Markdown source, so every inline backtick is lost.
+  Confirmed 2026-09-22 on nf-core/rnaseq#1925: the user copied a rendered backup into the submit box, and
+  the posted review lost all code formatting around file names, flags and an error string.
 
 ### Choosing the review verdict
 
@@ -763,6 +767,10 @@ which throws if it's missed).
 
 nf-core pipeline repos have a `.github/PULL_REQUEST_TEMPLATE.md` (instructions comment + checklist). Passing `--body` to `gh pr create` replaces it entirely, which loses the template. Instead, read the template file and build the body as **template content, then your description appended after it** (e.g. under a `## Description` heading) — don't just write your own body from scratch. This applies whether or not `--web` is used.
 
+**Fill in the checklist; never paste it unticked.** Tick (`- [x]`) each item actually done for this PR, delete items that don't apply (the template itself says "delete whatever is not relevant"), and leave unticked only an applicable item not yet verified (e.g. a test run still in progress), then tick it once it is.
+Confirmed 2026-09-22 on nf-core/metatdenovo#538: the user noticed PR bodies had been going out with the whole checklist unticked for at least a day.
+To fix a filed PR, `gh pr edit --body-file` fails in gh 2.45 (Projects-classic GraphQL error); use `gh api -X PATCH repos/OWNER/REPO/pulls/N -F body=@file` instead.
+
 `--web` does not create the PR itself in this gh version (2.45.0) — it only opens a
 pre-filled compose page and waits for a human to click "Create" there. Checking
 `gh pr list`/`gh pr view` right after invoking it will correctly show nothing yet;
@@ -885,7 +893,7 @@ belongs here in global CLAUDE.md rather than in any one project's own memory, si
 per-project memory isn't visible from a different repo's session and a global process like
 this needs to be.
 
-Rough shape: pre-release issue triage, `nf-core pipelines lint --release`, CHANGELOG
+Rough shape: pre-release issue triage, the repo-wide comment/doc pass (below), `nf-core pipelines lint --release`, CHANGELOG
 finalized (no leftover placeholder PR numbers; the date comes later, see below), version bump via
 `nf-core pipelines bump-version`, a dev→main (or dev→master, see below) release PR needing
 two reviews — via the `#release-review-trading` Slack channel, though this is often a direct
@@ -913,7 +921,7 @@ version-bump PR merged; and again 2026-09-18 preparing 2.3.0, when I listed dati
 CHANGELOG as an early step and the user pointed out it should already be known. Applies to
 every pipeline release, not one repo.
 
-**Before opening the release PR, do a final pass over every comment and doc in the repo**
+**First step of every release, before the version bump: do a final pass over every comment and doc in the repo**
 (not just files touched by the release's own PRs) — concise, to the point, clear, but with
 sufficient detail — in case anything slipped through an individual PR's own "Trim comments"
 pass (see above) or was never covered by one at all. A release is the last natural
