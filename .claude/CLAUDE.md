@@ -29,11 +29,17 @@ current wording:
   precise), so no change needed there — just don't drop it. The user's own view (confirmed
   2026-08-04): this same disclosure spirit extends to *review* contributions too, not just
   commits/PRs — when drafting a review for the user to post (or posting one directly), say
-  up front that it had AI assistance, same as the sarek #2257 review draft did
-  ("reviewed with some help from Claude Code").
+  up front that it had AI assistance. Word it without hedging: "reviewed with Claude Code",
+  "analysis done with Claude Code" — not "with *some* help from", which undersells it.
+  Confirmed 2026-09-24 (nf-core/ampliseq #850): the agent normally does the whole analysis,
+  with the user discussing it before it is finalized, so "some help" misdescribes the split.
 - **`[skip ci]`**: add to a commit title for intermediate/WIP pushes you know aren't
   final/review-ready yet, to avoid burning CI on non-final commits; omit it for the final
-  review-ready commit.
+  review-ready commit. A `[skip ci]` commit left as a PR's head leaves that PR showing no
+  checks at all, permanently -- nothing dispatches, so waiting never resolves it and an empty
+  commit or a manual re-run is needed. Never suggest it for a follow-up commit on an already
+  open PR; a one-line CHANGELOG or typo fix there is exactly the case that looks like it
+  qualifies and does not. Confirmed 2026-09-24 on nf-core/ampliseq#1082.
 - **Meta map field access**: nf-core (vendored) modules and subworkflows may only read
   `id` and `single_end` from the meta map — any other custom field (e.g. `domain`,
   `refinement`, `binner` as seen in nf-core/mag) must only be read/written by *local*
@@ -256,39 +262,20 @@ was first requested in.
   turned "there is a test for this" into "that test cannot fail" — and explained how the option had
   been a silent no-op for so long. Cheap to check, and it upgrades a vague "coverage looks thin"
   into a concrete finding.
-- **A pending review's API-set body does not reliably survive the user submitting it through the
-  GitHub web UI.** Originally suspected of needing at least one inline comment to trigger, but that
-  turned out to be too narrow a theory -- see the update below. Confirmed on
-  nf-core/genomeassembler#221 (2026-09-09): posted a review via one `POST .../reviews` call
-  with both a `body` and an inline `comments` entry; when the user opened "Files changed" and clicked
-  Submit, the drafted body was gone from the "Finish your review" box and got replaced by whatever
-  short text the user typed in its place (their own summary, not mine) -- the inline comment itself
-  came through fine. **Update, confirmed on nf-core/genomeassembler#226 (2026-09-11): the same loss
-  happens on a body-only pending review with zero inline comments too** -- so the trigger is not
-  "has inline comments," it's something broader (plausibly just "submitting via the web UI" in
-  general). Treat this as an unconditional risk on every pending review posted via the API, not a
-  special case to reason about per-review. Root cause not fully isolated, but the mechanism doesn't
-  matter much: **the body is not safe to treat as delivered until the review is actually submitted.**
-  Recoverable after the fact -- `PATCH`/`PUT .../reviews/{id}` still accepts a new `body` on an
-  already-submitted review (state is untouched, matches the "Choosing the review verdict" note
-  below) -- but that requires noticing the loss and asking the user to check. Better: **always**
-  paste the full body text as a plain chat message too, regardless of whether the review has inline
-  comments, so the user has something to copy into the submit box directly rather than trusting the
-  API-set body to come through the UI unattended. The user's own suggestion (2026-09-09), broadened
-  2026-09-11 after the no-inline-comments case showed the original narrower framing was wrong.
-- **When pasting that body as backup, paste it verbatim in full — not a shortened chat summary.**
-  Confirmed 2026-09-11 on nf-core/modules#12912: pasted an abbreviated version in chat ("as above —
-  full detail in the posted review") instead of the exact text, on the assumption the full body was
-  already safely delivered via the API. The user then submitted through the UI, the body got lost
-  (this exact bug), and they'd only saved the abbreviated chat version — the real text had to be
-  recovered by re-reading the request file. An inline comment had also referred the reader to "the
-  review body" for a specific point, which no longer existed there once the body was lost, compounding
-  the problem. The backup paste only serves its purpose if it is the literal thing that needs to survive,
-  not a pointer to something else that might not.
-- **Put that backup paste inside a fenced code block (four backticks, `markdown` tag), not as rendered
-  prose.** Copying rendered chat text drops the Markdown source, so every inline backtick is lost.
-  Confirmed 2026-09-22 on nf-core/rnaseq#1925: the user copied a rendered backup into the submit box, and
-  the posted review lost all code formatting around file names, flags and an error string.
+- **Post only the inline comments through the API; deliver the review body in chat.** GitHub's web
+  UI never shows an API-set pending body in the "Finish your review" box. It stays behind as a
+  separate unposted comment. The user writes the real review body by pasting it into that box,
+  often after editing it, and a single whole body there is how nf-core reviews are expected to look.
+  So leave `body` out of the `POST .../reviews` call and give the body in chat as the only copy.
+  Confirmed by the user 2026-09-25 on nf-core/taxmarker#27, after earlier misreadings of this as an
+  intermittent "lost body" bug (genomeassembler#221/#226, 2026-09-09/11).
+- **Paste that body verbatim and in full, never a shortened summary.** It is the only copy. An inline
+  comment that points to "the review body" relies on it. On nf-core/modules#12912 (2026-09-11) only
+  an abbreviated chat version existed, and the real text had to be recovered from the request file.
+- **Put it inside a fenced code block (four backticks, `markdown` tag), not as rendered prose.**
+  Copying rendered chat text drops the Markdown source, so every inline backtick is lost.
+  Confirmed 2026-09-22 on nf-core/rnaseq#1925: the posted review lost all code formatting around
+  file names, flags and an error string.
 
 ### Choosing the review verdict
 
@@ -715,6 +702,82 @@ gunzip its own input at the top of the script and gzip its own output at the bot
 pattern nf-core's own `eggnogmapper` module already uses for its input. This does mean
 the patched module can no longer realistically be proposed upstream as-is later.
 
+### A tool's `--version` can report the enclosing git repository
+
+Some tools derive their version by shelling out to `git describe --tags`, falling back to a
+hard-coded constant only when that fails.
+Installed under conda, the package sits inside the pipeline's own checkout, so the command
+succeeds and reports *the pipeline's* release tag.
+Containers install outside any repository and usually lack `git`, so they report correctly — the
+two profiles then disagree and only a conda run shows it.
+
+Confirmed 2026-09-23 on nf-core/metatdenovo#540, fixed in nf-core/modules#13016:
+`emapper.py --version` printed `emapper-1.4.1-184-g1b3550e`, where `1.4.1` is a metatdenovo tag,
+and the module's `grep -o 'emapper-[0-9]...'` reported it as eggnog-mapper's version.
+The real version was absent from the string, so no reshaping of the grep could recover it.
+
+Prefer a version source nothing outside the environment can influence:
+`python -c "from importlib.metadata import version; import sys; print(version(sys.argv[1]))" <dist>`.
+Pass any argument through `sys.argv` rather than inline — `nf-core modules lint` compares the eval
+string in `main.nf` against `meta.yml` verbatim and mismatches on escaped quotes and on
+`__dunder__` names, with no way to satisfy it other than removing them.
+
+A module's own tests cannot catch this: nf-core/modules carries no tags, so `git describe` fails
+there and the fallback runs.
+
+### A Wave Singularity image holds only what `environment.yml` declares
+
+A Wave-built Docker image sits on an OS base, so `gzip`, `tar`, `sed`, `awk` and friends are
+there whether or not the module asks for them.
+The Singularity build of the same spec is the conda environment alone, under
+`/opt/wave/.pixi/envs/default/bin`, with no OS base at all.
+Anything a script calls that is not in `environment.yml` therefore works under Docker and dies
+under Singularity or Apptainer with `command not found` and exit 127.
+
+So: every command a `script:` block runs must be a declared dependency, not just the tool the
+module is named after.
+Check it whenever a script changes, especially when a change *removes* a tool — the container
+keeps whatever the old spec pulled in until it is rebuilt.
+
+Confirmed 2026-09-23 on nf-core/metatdenovo#544. `KOFAMSCAN_DOWNLOAD` and `EGGNOG_DOWNLOAD` had
+moved their downloading to Nextflow's own `file()` staging, leaving scripts that only run
+`gunzip` and `tar` while `environment.yml` still declared `wget` and `awscli`:
+
+```
+docker  wget_awscli:9510e6a6af2abe94             gunzip /usr/bin/gunzip  tar /usr/bin/tar
+oras    wget_awscli:340260e7e9dd32f7             gunzip MISSING  gzip MISSING  tar MISSING
+oras    eggnog-mapper_awscli:34a6ca5baa89f396    gunzip MISSING  gzip MISSING  tar MISSING
+```
+
+Images from `depot.galaxyproject.org` (biocontainers, including the mulled ones) are Debian-based
+and do carry the usual utilities, so the trap is specific to Wave-built images.
+`apptainer exec <uri> sh -c 'command -v gunzip tar'` settles it in one call and is worth running
+before blaming a module.
+
+### Rebuilding a local module's container with `nf-core modules containers create`
+
+`nf-core modules containers create <tool>/<subtool>` (beta, nf-core/tools 4.1.0) builds the Docker
+and Singularity images from `environment.yml` through Wave, writes a `containers:` block into
+`meta.yml`, drops per-arch lock files in `.conda-lock/`, and rewrites the module's `container`
+line. That layout is current nf-core convention — vendored `modules/nf-core/*` components carry
+both — so keep them for local modules too.
+
+Three things to fix afterwards, all from the command assuming an nf-core/modules checkout:
+
+- It resolves only `modules/nf-core/<tool>/<subtool>/main.nf`. For a module under
+  `modules/local/`, run it from a scratch directory holding `modules/nf-core` as a symlink to the
+  repo's `modules/local`, then the paths inside resolve.
+- The `lock_file:` paths it writes into `meta.yml` then say `modules/nf-core/...`. Correct them to
+  `modules/local/...` or the generated configs point at files that do not exist.
+- It emits the `container` ternary with `?` and `:` at line starts, which prettier leaves alone
+  and no other module matches. Rewrite it in the usual shape.
+
+Adding a `containers:` block makes `nf-core pipelines lint` fail `container_configs`, because
+`conf/containers_*.config` is generated from those blocks; `nf-core pipelines lint --fix
+container_configs` regenerates all eight. Prefer the
+`https://community-cr-prod.seqera.io/.../data` form over `oras://` for the Singularity branch,
+matching the other modules.
+
 ### Verify module tests at the Nextflow version CI pins, not the local default
 
 nf-core/modules CI runs nf-test on an older Nextflow than a dev box usually has, and the older
@@ -829,6 +892,15 @@ The user asked for concise ones from the start rather than editing them down at 
 The same discipline as the "Trim comments" pass under nf-core pipeline repos, applied to the PR
 body — and for the same reason, it needs to be a deliberate step, because a first draft written
 straight after the investigation reads like the investigation.
+
+**Weigh the description against the size of the diff.**
+Reviewers say so directly: a second reviewer, on an nf-core/website PR merged 2026-09-23,
+approved it with a sour comment that the description was much longer than the change itself.
+Two reviewers on two repos within four days is a pattern, not one person's taste.
+A one-file specification or documentation fix earns a few lines, however much investigation sits
+behind it — the survey, the counts, the reasoning about what the rule ought to be all belong in
+the linked issue.
+Write the short version first rather than trimming one down after a reviewer objects.
 
 Commit messages are the place for the detail that gets cut here: they are durable, greppable, and
 attached to the code rather than to a review thread.
