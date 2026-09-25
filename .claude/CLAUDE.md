@@ -797,6 +797,30 @@ that a failure is the test rather than the container engine.
 Related habit worth keeping: when adding a test beside existing ones, copy their `when` block's
 `params`/`config` scaffolding, not just their `process` block.
 
+### nf-core/modules test assertions: always `sanitizeOutput`
+
+Every `then` block in an nf-core/modules test snapshots the whole output through nft-utils'
+`sanitizeOutput`, including the stub:
+
+```nextflow
+assertAll(
+    { assert process.success },
+    { assert snapshot(sanitizeOutput(process.out)).match() }
+)
+```
+
+Do not snapshot the `versions` channels separately; `sanitizeOutput` already includes them.
+For an output whose raw md5 is unstable, such as a BAM, don't fall back to snapshotting
+hand-picked pieces. Pass the channel through `readsMD5Keys`:
+`sanitizeOutput(process.out, readsMD5Keys: ["bam"])`.
+The key is the **emit name**. A key that matches no channel is silently ignored, and the file
+then goes in as a raw md5.
+
+Forgotten repeatedly, most recently 2026-09-25 on nf-core/modules#13035. I hand-rolled a
+readsMD5 snapshot, and the reviewer suggested `readsMD5Keys: ["out"]`, a key that matches no
+channel. Accepting a GitHub suggestion that changes what a snapshot contains also needs the
+`.snap` regenerated, or CI fails on the next push.
+
 ### Contributing fixes back to nf-core/modules
 
 When a real bug is found in a vendored nf-core/modules component while working in a
