@@ -312,6 +312,15 @@ specific author seems in the specific PR, not just their maintainer status in th
 it as a live consideration when drafting the recommendation, but leave the final call to the user
 the same way CI-already-failing does above.
 
+**Exception: nf-core/modules and subworkflows components get a stricter bar.**
+The "the author maintains it, so it's their call" reasoning doesn't carry over.
+Anyone who submits a component becomes its maintainer, and many pipelines may vendor the code.
+A weak component therefore spreads well beyond its author.
+Tests that cannot fail on the tool's behaviour, inputs no test exercises, and wrong `meta.yml` descriptions call for at least Comment, never Approve with comments.
+When they are substantial, Request changes is reasonable.
+Confirmed 2026-09-28 on nf-core/modules#13040: the new `octopusv/filter` and `octopusv/subset` modules both had no-op tests.
+I recommended Approve with comments, and the user submitted Comment, "close to actually requiring changes".
+
 Where those conditions don't hold — an external contribution, or blocking asks already
 outstanding from other reviewers — a plain **Comment** review is usually the better call than
 adding another block.
