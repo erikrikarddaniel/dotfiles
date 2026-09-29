@@ -734,7 +734,7 @@ string in `main.nf` against `meta.yml` verbatim and mismatches on escaped quotes
 A module's own tests cannot catch this: nf-core/modules carries no tags, so `git describe` fails
 there and the fallback runs.
 
-### A Wave Singularity image holds only what `environment.yml` declares
+### A Wave Singularity image may hold only what `environment.yml` declares
 
 A Wave-built Docker image sits on an OS base, so `gzip`, `tar`, `sed`, `awk` and friends are
 there whether or not the module asks for them.
@@ -760,6 +760,13 @@ oras    eggnog-mapper_awscli:34a6ca5baa89f396    gunzip MISSING  gzip MISSING  t
 
 Images from `depot.galaxyproject.org` (biocontainers, including the mulled ones) are Debian-based
 and do carry the usual utilities, so the trap is specific to Wave-built images.
+
+Not every Wave Singularity image is bare, though, so check rather than assume either way.
+On 2026-09-29 the `coreutils_hmmer` image for `hmmer/eslsfetchindex` (the
+`https://community-cr-prod.seqera.io/.../f2c9b2c2.../data` form) turned out to be Ubuntu 24.04,
+with `gzip`, `tar`, `awk` and `sed` under `/usr/bin` beside the pixi environment.
+The bare ones above were checked in their `oras://` form; whether the form or the build date makes
+the difference is not known.
 `apptainer exec <uri> sh -c 'command -v gunzip tar'` settles it in one call and is worth running
 before blaming a module.
 
