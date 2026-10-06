@@ -66,6 +66,17 @@ Confirmed 2026-08-03: burned several `find`/`which`/`ls` round-trips hunting for
 existing note that `prek`/`nf-core` also live there) before the user interjected to ask
 first next time.
 
+## Waiting for a background process
+
+Never wait with `until ! pgrep -f "<pattern>"; do sleep N; done`.
+The waiter's own shell command line contains `<pattern>`, so `pgrep -f` always matches the waiter
+itself and the loop never ends, whether or not the real process is still running.
+Wait on the PID instead (`while kill -0 <pid> 2>/dev/null; do sleep N; done`), or bracket one
+character of the pattern (`pgrep -f "[n]f-test test ..."`), which the regex still matches in the
+real process but not in the literal text of the waiter's command line.
+Confirmed 2026-10-06 on nf-core/metatdenovo: two waiters for nf-test runs kept looping for hours
+after both runs had finished and passed, and the results were never reported.
+
 ## Markdown style
 
 In Markdown files, write one sentence per line (a "semantic linefeeds" / ventilated-prose style)
@@ -1051,6 +1062,22 @@ is enough. List names/handles the user themselves would recognize as having help
 the user's own contributions since they're the one publishing the release. Requested
 explicitly by the user (2026-09-10, nf-core/phyloplace) as an addition to the release
 procedure going forward, for any pipeline release.
+
+**Name significant reviewers in the CHANGELOG entries themselves, not only in the release notes.**
+nf-core's release procedure says to "add the GitHub handle of the main contributors of each
+CHANGELOG entry (author, significant reviewers, etc.)", so that each GitHub release shows their
+icons.
+The user reads "significant" as a reviewer who shaped the PR: requested changes, found a bug, or
+left substantive comments that led to changes.
+A bare approval, or an approval with a single nit, does not count.
+Follow the repo's existing handle style and add the reviewer after the author, e.g.
+`(@author, reviewed by @reviewer)`, as nf-core/riboseq does.
+Do this as part of release preparation, before the release PR is reviewed.
+Sweep each CHANGELOG entry's PR with `gh api repos/OWNER/REPO/pulls/N/reviews` and
+`.../pulls/N/comments`, and propose the list to the user before writing it, since "significant"
+is a judgement call.
+First applied 2026-10-06 to nf-core/metatdenovo 2.0.0, after the release PR had already been
+reviewed, so it needed a separate PR into `dev`.
 
 ### Params flow in as explicit values, not read directly (magmap, metatdenovo, phyloplace, taxmarker — not ampliseq)
 
