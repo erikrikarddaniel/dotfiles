@@ -147,6 +147,20 @@ coverage smell" note below (rnasplice#245) -- there the smell was two tests that
 differed and didn't; here it's a suite that individually looked reasonable but never together
 spanned the axis the function actually needed to get right.
 
+## Snapshots show "unchanged", value assertions show "right"
+
+Keep explicit value assertions in a test even when a snapshot or md5 of the same output exists.
+A snapshot is generated from the code under test, so a wrong result gets frozen into it.
+A routine `--update-snapshot` then accepts any later change without anyone looking at it.
+Value assertions pin what is correct, and when one fails it names the property that broke instead of "md5 differs".
+
+So for a change to logic, assert the specific values the change is about, and keep the snapshot beside them as a change detector.
+This holds alongside nf-core/modules' `sanitizeOutput` snapshot rule below, not instead of it.
+If a reviewer calls the assertions redundant with the md5, explain the difference rather than deleting them.
+
+Confirmed 2026-10-08 on nf-core/metatdenovo#587, where a reviewer asked exactly that.
+The user: "Major drawback with md5sum checks."
+
 ## Review-worthiness signals, and reading vs. running to catch bugs
 
 **Two concrete signals for whether new work needs independent review, regardless of how small
