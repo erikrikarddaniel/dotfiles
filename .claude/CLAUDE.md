@@ -442,6 +442,23 @@ The website's AWS results tab shows only `results-<release tag sha>`.
 A test run from a branch or dev never shows up there.
 To fill a release's tab after a failed release run, resume that run on Platform with a corrected config, keeping its revision and outdir.
 
+### Template `errorStrategy`: a `retry` past `maxRetries` kills running tasks
+
+Nextflow turns a `retry` answer past `maxRetries` into `TERMINATE` (`TaskProcessor.checkErrorStrategy`), not `finish`.
+`TERMINATE` kills every running task.
+The template's `conf/base.config` answers `retry` for exit codes 130–145 on every attempt, the last included, so one task failing twice on memory aborts the run.
+Confirmed 2026-10-08 on nf-core/metatdenovo: a small task's second OOM killed a two-day KofamScan task.
+
+Fix, verified with a minimal workflow, including per-process `maxRetries` overrides:
+
+```groovy
+errorStrategy = { task.exitStatus in ((130..145) + 104 + (175..177)) && task.attempt <= task.maxRetries ? 'retry' : 'finish' }
+```
+
+In metatdenovo#588, template fix in nf-core/tools#4506.
+magmap, phyloplace and taxmarker get it at the first template sync after #4506 is released; check the line after that sync.
+Until then, put the line in a big run's own config before resuming a run with long tasks in flight; it is not part of the task hash.
+
 ### Docs pages: extra pages go under `docs/usage/`, cross-doc links stay relative
 
 **A `docs/*.md` file only gets a page on nf-co.re if its path contains the substring `usage` or `output`.**
