@@ -427,6 +427,21 @@ Check it whenever adding a test config, and when touching an existing one sweep 
 Confirmed 2026-09-18 on nf-core/phyloplace, where the user spotted it in a newly added `conf/test_gzipped.config` and asked for it as a standing rule — a sweep then found **9 of 12** test configs wrong, most of them long-standing.
 Applies to any nf-core pipeline repo, not just this user's own.
 
+### AWS full tests (nf-core megatests on Seqera Platform)
+
+A green `awsfulltest` job in GitHub Actions only means the Platform launch succeeded.
+The pipeline result is on Platform or in Slack.
+
+Fusion's spot snapshots (`sending incremental snapshot signal (SIGUSR1)`, every 5 minutes) can break a step that is reading through a pipe at that moment.
+On nf-core/metatdenovo, three failures in a row lined up with that signal.
+BBMap lost a block from its `bgzip -dc` input subprocess (`Could not write 65280 bytes`, then `Mismatch between length of bases and qualities`), and Prokka's `parallel --pipe hmmscan` died.
+`fusion { snapshots = false }` in the `nextflow_config` block of `awsfulltest.yml` fixed both (nf-core/metatdenovo#584, 2026-10-08).
+Suspect this first when a full-test task dies at a multiple of 5 minutes, before patching the tool.
+
+The website's AWS results tab shows only `results-<release tag sha>`.
+A test run from a branch or dev never shows up there.
+To fill a release's tab after a failed release run, resume that run on Platform with a corrected config, keeping its revision and outdir.
+
 ### Docs pages: extra pages go under `docs/usage/`, cross-doc links stay relative
 
 **A `docs/*.md` file only gets a page on nf-co.re if its path contains the substring `usage` or `output`.**
