@@ -473,6 +473,22 @@ In metatdenovo#588, template fix in nf-core/tools#4506.
 magmap, phyloplace and taxmarker get it at the first template sync after #4506 is released; check the line after that sync.
 Until then, put the line in a big run's own config before resuming a run with long tasks in flight; it is not part of the task hash.
 
+### A task just under its memory limit crawls for hours before it is killed
+
+A task whose memory need exceeds its container limit does not fail fast.
+Near the cgroup limit the kernel keeps evicting pages the task still needs and reading them back, so the task runs many times longer than the work takes, and is then killed with 137 anyway.
+A long runtime before an OOM kill is therefore no measure of how much work the task got through.
+
+So when a task is killed on memory, raise the limit well above the measured or estimated need rather than in small steps.
+Never set a flat override (`memory = { 100.GB }`) in a big run's config: without `* task.attempt` the retry gets the same limit and fails the same way.
+Memory is not part of the task hash, so raising it costs no cache.
+
+Confirmed 2026-10-09 on nf-core/metatdenovo (`SUM_DIAMONDTAX`, an R join over a 443M-row counts table).
+At a flat 100 GB, three tasks ran 53 min to 5.6 h each, twice, before being killed.
+At 300 GB they peaked at 157–163 GB and finished in 30–35 min.
+The host had only 6.5 GB of swap, so this was not swapping.
+The eviction mechanism is inferred, not measured; readr's lazy reads from a temporary file are a plausible source of the re-reads.
+
 ### Docs pages: extra pages go under `docs/usage/`, cross-doc links stay relative
 
 **A `docs/*.md` file only gets a page on nf-co.re if its path contains the substring `usage` or `output`.**
