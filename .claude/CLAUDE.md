@@ -1174,6 +1174,15 @@ Several guard very large files (BAMs, trimmed or normalised reads), and on a big
 
 Adopted 2026-10-09 from nf-core/proteinfamilies#205 (Evangelos Karatzas's `docs/CONTRIBUTING.md`), where the unrecognised-parameter behaviour was also confirmed.
 
+**In a typed `params {}` block in `main.nf`, declare every optional parameter nullable: `Type?`.**
+A parameter typed `String`, `Integer` or `Float` with no value is required.
+Nextflow 26.04 accepts one that `nextflow.config` sets to `null`; the 26.09 edge releases, and so 26.10 stable, stop at launch with `Parameter 'x' is required but no value was provided`.
+A non-nullable parameter whose default comes from `getGenomeAttribute()` is required on both versions when that returns null.
+`Boolean` without a default is fine: it defaults to `false`.
+Check this when adding a parameter, and whenever defaults move out of `nextflow.config` (a template sync, a typed-params conversion).
+As of 2026-10-09 taxmarker has six non-nullable numeric parameters without a default in `main.nf`, which are safe only because `nextflow.config` gives them real values.
+Confirmed 2026-10-09 reviewing nf-core/rnasplice#304, which fixed 19 such parameters after `latest-everything` CI failed on every PR.
+
 ### Params flow in as explicit values, not read directly (magmap, metatdenovo, phyloplace, taxmarker — not ampliseq)
 
 `main.nf` should pass `params.*` values into `workflows/<pipeline>.nf` as explicit
