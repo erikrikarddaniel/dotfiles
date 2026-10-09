@@ -161,6 +161,21 @@ If a reviewer calls the assertions redundant with the md5, explain the differenc
 Confirmed 2026-10-08 on nf-core/metatdenovo#587, where a reviewer asked exactly that.
 The user: "Major drawback with md5sum checks."
 
+## Show the user the tests, every time
+
+The user rarely reads the code I write, and has said the tests are where that matters most.
+So whenever a change adds or edits a test, or updates a snapshot, show it in chat before calling the work done:
+
+- each test added or changed, by name, with what it feeds in and what it asserts, in plain words;
+- for each snapshot change, which entries changed and why that change is expected;
+- what would make each new assertion fail, i.e. the bug it catches.
+
+End with a one-line reminder to read the test files themselves, naming them.
+A snapshot that only grew, or only changed md5s, still gets a line saying so.
+
+Asked for 2026-10-09 on nf-core/metatdenovo#589, after a reviewer found that nothing tested whether batched and unbatched KofamScan gave the same result.
+The user: "I'm rarely checking the code you produce. I wouldn't be so worried about that if I checked the tests, but I don't."
+
 ## Review-worthiness signals, and reading vs. running to catch bugs
 
 **Two concrete signals for whether new work needs independent review, regardless of how small
