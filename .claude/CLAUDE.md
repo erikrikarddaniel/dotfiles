@@ -1141,6 +1141,24 @@ is a judgement call.
 First applied 2026-10-06 to nf-core/metatdenovo 2.0.0, after the release PR had already been
 reviewed, so it needed a separate PR into `dev`.
 
+### Naming new parameters (magmap, metatdenovo, phyloplace, taxmarker)
+
+For any new parameter:
+
+- A threshold says which bound it sets: `min_*` or `max_*`. E-value thresholds end in `_evalue_cutoff`.
+- A step that runs by default is turned off with `skip_<step>`, default `false`. An optional step is turned on with `run_<step>`, default `false`. Never a `skip_*` that defaults to `true`.
+- A setting with more than two states is one enum parameter, not several booleans that can contradict each other. List its options in a comment after the default in `nextflow.config`, e.g. `family_merging = 'all' // ['all', 'created_only', 'none']`.
+- Keep the schema groups and the `params` block of `nextflow.config` in pipeline order.
+
+Naming after the pipeline stage rather than the tool (`recruit_min_model_coverage`, not `hmmsearch_query_length_threshold`) is good where tools are swappable, but renaming existing parameters breaks command lines.
+Do it only at a major release, and then also set `failUnrecognisedParams = true` in the `validation {}` block.
+Without it, nf-schema only warns about an unknown parameter and the run continues with the default, so a v2 command line silently loses its settings.
+
+Keep per-output `save_*` flags rather than a single `--save_intermediates`.
+Several guard very large files (BAMs, trimmed or normalised reads), and on a big run all-or-nothing is not a real choice.
+
+Adopted 2026-10-09 from nf-core/proteinfamilies#205 (Evangelos Karatzas's `docs/CONTRIBUTING.md`), where the unrecognised-parameter behaviour was also confirmed.
+
 ### Params flow in as explicit values, not read directly (magmap, metatdenovo, phyloplace, taxmarker — not ampliseq)
 
 `main.nf` should pass `params.*` values into `workflows/<pipeline>.nf` as explicit
