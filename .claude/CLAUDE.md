@@ -48,6 +48,18 @@ current wording:
   as an nf-core-wide standard by this doc, not something specific to any one pipeline —
   matches what's already documented in the "PR/review process specifications" section
   below.
+- **Override: editing snapshots by hand is allowed, and preferred before touching code.**
+  The remote file says "You MUST NOT edit snapshots manually". The user disagrees and keeps
+  this as a standing override in every repo (2026-10-15).
+  Work test-first: edit the snapshot to show the output expected after the fix, run the test and
+  see it fail, then fix the code until it passes.
+  `--update-snapshot` is fine, but never accept its result without reading the diff and deciding
+  the new output is right.
+  If a task in the PR changes the version of something (a tool, a module, a container), do that
+  update first, so the version-only snapshot changes are separate from the changes the code
+  edit causes.
+  Md5s are hard to check, so pair them with real content assertions on the same output.
+  Still regenerate on the CI CPU architecture when an md5 depends on the environment.
 
 ## This file's location
 
