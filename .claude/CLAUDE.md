@@ -188,6 +188,17 @@ that plugs into either one is exactly as review-worthy as a five-hundred-line on
 *category* proactively when starting such work, rather than waiting to be asked "is this
 complex."
 
+**Offer an independent review before the user posts the PR, in one line, whenever one of these applies:**
+a shared or vendored component is touched;
+a rewrite keeps the output identical but changes an assumption about the input (for example "per file" instead of "per sample", which stays invisible while the inputs happen to fit);
+resource labels or defaults change for downstream users;
+test data is built inline, or an edge-case guard is added.
+Say it when the work starts or before the PR is filed, not after a reviewer finds the problem.
+When choosing a resource label, ask for the largest realistic input first.
+A review by the same model shares its blind spots, so brief a fresh agent with the diff and "what breaks for another pipeline?", never with the reasoning behind the change.
+Confirmed 2026-10-15 on nf-core/modules#13231: a reviewer found five issues by reading alone (a silent per-file TPM assumption, an empty-input case, a redundant `col_select`, a superseded `map_dfr`, test files left in `/tmp`) and an undersized label, although the real input size (109M ORFs per file) was already known.
+The user afterwards: "I need to learn when a PR is so complex so I should ask for a review before posting."
+
 **When a codebase has a documented fragile area, self-test new code against that same area
 before calling verification complete, rather than leaving it for a reviewer to catch what you
 already knew to look for.** Testing the common/happy path thoroughly does not substitute for
