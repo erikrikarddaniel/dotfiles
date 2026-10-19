@@ -98,6 +98,15 @@ much easier to interpret (a changed sentence shows as a one-line diff instead of
 paragraph). Applies to new Markdown content going forward; don't reformat existing
 paragraph-wrapped content unless asked.
 
+## Referring to figures and tables in prose
+
+State the fact first, then point to the display item in parentheses at the end of the sentence.
+Write "Transmembrane architectures were found in 12 genera (@tbl-n)."
+Not "Transmembrane architectures can be found in @tbl-n. They were found in 12 genera."
+The reference supports the claim; it is not the subject of the sentence.
+Applies to figures, tables and supplementary items in any manuscript or Quarto text.
+Stated by the user 2026-10-19 in the mycobacterium_supercomplex project.
+
 ## Code Comments
 
 - Default to no comment. Code shows *how*; comment only to carry *why* — a non-obvious constraint, deliberate deviation, gotcha, or workaround.
