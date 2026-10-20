@@ -603,6 +603,12 @@ prose + an exact list of the resulting filenames. Confirmed on nf-core/sativa
 archaeal-16S dataset this way in one commit to the `sativa` branch's README, since a
 single session had touched both.
 
+**Commit test data straight to the fork's per-pipeline branch, never a topic branch.**
+Fast-forward the fork's branch (e.g. `erikrikarddaniel/test-datasets:metatdenovo`) to its upstream namesake, commit on it, push, and open the PR between the two same-named branches.
+Never delete that fork branch after the merge: it is long-lived, unlike a pipeline feature branch.
+With the same branch name on both sides, testing against the fork before the merge only needs the org swapped in `pipelines_testdata_base_path` (`erikrikarddaniel` and `nf-core`).
+Applies to every pipeline. Missed 2026-10-20 on nf-core/test-datasets#2341, where a topic branch confused the user, because the rule was only in magmap's project memory.
+
 ### Template syncs
 
 nf-core/tools periodically releases a new version of the pipeline template (the scaffold
