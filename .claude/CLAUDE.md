@@ -61,6 +61,12 @@ current wording:
   Md5s are hard to check, so pair them with real content assertions on the same output.
   Still regenerate on the CI CPU architecture when an md5 depends on the environment.
 
+### A change to a repo's AGENTS.md gets its own PR
+
+Never bundle an `AGENTS.md` edit with other work, however small the edit.
+Branch it off the target branch and file it alone.
+Reviewers pushed back on a bundled one (2026-10-19), and the user asked for the rule in every repo.
+
 ## This file's location
 
 `~/.claude/CLAUDE.md` is a symlink to `~/dotfiles/.claude/CLAUDE.md` — the Edit tool refuses to
