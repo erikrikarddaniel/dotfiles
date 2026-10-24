@@ -320,6 +320,22 @@ test. Confirmed working on nf-core/metatdenovo#495: two seeded-random DNA sequen
 vs ~2 kb) reproduced the exact same "cannot find directory" crash seen on the real run, on
 every single invocation.
 
+### A reference, database or index passed as its own process input
+
+Be careful whenever a process takes a reference, database, index or similar as a separate input beside the per-sample data.
+It keeps causing problems, and the module's own tests rarely show it.
+The two inputs are separate channels, so they pair by arrival order, never by identity.
+Ask three questions each time you see one, in a module call, a subworkflow `take:` or a review:
+
+- Is the extra input one shared item or one per sample? A shared item must be a value channel (`.first()` or `channel.value()`). A queue channel with one item pairs with the first sample only, and the other samples never run.
+- If it is one per sample, it must be joined to the sample's data on a key. Pairing it positionally gives each sample another sample's reference, and the pairing changes on every resume, because cached tasks emit in submission order and new tasks in completion order.
+- Does the tool use it at all? The reference is part of the task hash even when the tool ignores it, so a mispaired or large one breaks `-resume` and stages gigabytes for nothing. If the tool does not need it, pass an empty value.
+
+Nothing fails visibly, which is why it survives.
+Confirmed 2026-10-24 on nf-core/magmap#293: in `sample` mode `SAMTOOLS_STATS` got another sample's 0.7 GB genome fasta, a different one on each resume, and about 90 tasks reran every time.
+`samtools stats` gave identical output with the wrong reference and with the sample's own (as `.gz` and as plain fasta), so only the cache suffered.
+Check with `diff` of `.command.sh` between two launches of the same sample's task before blaming anything else for a resume miss.
+
 ## Posting PR code reviews (any repo)
 
 When reviewing someone else's PR (any repo, not nf-core-specific) and a finding maps to a
