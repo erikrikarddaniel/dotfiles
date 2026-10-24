@@ -95,6 +95,21 @@ real process but not in the literal text of the waiter's command line.
 Confirmed 2026-10-06 on nf-core/metatdenovo: two waiters for nf-test runs kept looping for hours
 after both runs had finished and passed, and the results were never reported.
 
+## Never delete a branch or commit behind a large run
+
+A large run (days of compute, results analysed afterwards) must stay reproducible from the code it ran.
+So never delete, rebase over, force-push or garbage-collect a branch, tag or commit that such a run launched from, and never clean one up as "merged" or "stale" housekeeping.
+Before removing any branch, check whether a run used it:
+look for `-r <branch>` in `.nextflow.log` files of the user's run directories, and for the branch name in `~/.nextflow/assets/.repos/<org>/<repo>/clones/`.
+If a run did, keep the branch or ask first.
+
+When a run starts from a branch, also pin it with a tag that is safe to keep (`run/<project>-<yyyy-mm>`, never a version-like name that could clash with a pipeline release tag), pushed to the user's fork.
+`-resume` depends on the rendered task scripts, containers and inputs, not the commit, but reproducing or extending the analysis needs the code.
+Nextflow's cached clone is a convenience, not an archive: it does not hold a branch that was deleted on the remote.
+Confirmed 2026-10-24 on nf-core/magmap: `mag-input-duckdb`, the branch a multi-day metatranscriptome run launched from, was gone from the fork.
+Its commit survived only as an unreferenced object in one local clone, and was pushed back to the fork on request.
+A similar loss had happened in another session.
+
 ## Markdown style
 
 In Markdown files, write one sentence per line (a "semantic linefeeds" / ventilated-prose style)
@@ -508,6 +523,26 @@ Suspect this first when a full-test task dies at a multiple of 5 minutes, before
 The website's AWS results tab shows only `results-<release tag sha>`.
 A test run from a branch or dev never shows up there.
 To fill a release's tab after a failed release run, resume that run on Platform with a corrected config, keeping its revision and outdir.
+
+### `DUCKDB_TABLE2PARQUET` and tables written by R: `NA` needs `nullstr`
+
+DuckDB's `read_csv` types each column from the first 20480 rows and reads only the empty string as missing.
+A numeric column with an `NA` after that sample fails the conversion (`Could not convert string "NA" to 'DOUBLE'`).
+An `NA` inside the sample makes the column text, silently, with the literal `NA` kept.
+R writes `NA`, so any table written by R needs `ext.args = "nullstr=['NA','']"` on the module (`ext.args` is for `read_csv` options, `ext.args2` for `COPY` options).
+Do not add `-` to `nullstr`: it is a strand value in magmap's counts tables.
+The module keeps no `NA` default, because `NA` is R's marker and `ext.args` is the nf-core convention.
+
+A `withName` selector matches the alias used in the workflow.
+For an aliased module (phyloplace has `DUCKDB_TABLE2PARQUET_TBLOUT`) use `withName: 'DUCKDB_TABLE2PARQUET.*'`.
+
+Check a pipeline's real tables before adding the line.
+phyloplace converts HMMER tables built by awk, with no `NA`, so it does not need it (2026-10-23).
+taxmarker has no DuckDB (2026-10-23).
+magmap (#292) and metatdenovo (#608) carry the line and a test.
+nf-core/modules #13447 documents it in `meta.yml` and tests it.
+A test that reads `conf/modules.config` directly fails on Nextflow 25.10.4 (`Unknown config attribute process.params.*`); load `nextflow.config` instead.
+Confirmed 2026-10-23: a `--save_parquet` run on a real metatranscriptome failed on `checkm_strain_heterogeneity` at line 36015.
 
 ### Template `errorStrategy`: a `retry` past `maxRetries` kills running tasks
 
@@ -1077,6 +1112,12 @@ Write the short version first rather than trimming one down after a reviewer obj
 Commit messages are the place for the detail that gets cut here: they are durable, greppable, and
 attached to the code rather than to a review thread.
 
+**Draft the body in first person, plain words, and show it in chat before opening the compose page.**
+Put it in a four-backtick `markdown` fence, wait for the user's edits, and use their final text.
+No headings, no sentence reciting the diff, and "I changed X because Y" rather than "This PR introduces".
+Keep the AI disclosure line.
+A reviewer asked the user (2026-10-23, nf-core/modules#13447) to edit generated descriptions "in your own words to something concise and understandable", and the user promised to.
+
 **Short is not the same as clear, and the same test applies to code comments.**
 State the invariant that breaks before tracing the mechanism that breaks it, keep one idea per
 sentence, and do not stack qualifying clauses onto a sentence that already carries the point.
@@ -1164,6 +1205,15 @@ the same day as I prepare it", after I pre-emptively pushed the date right after
 version-bump PR merged; and again 2026-09-18 preparing 2.3.0, when I listed dating the
 CHANGELOG as an early step and the user pointed out it should already be known. Applies to
 every pipeline release, not one repo.
+
+**A patch release (X.Y.Z) comes from a branch named exactly `patch`, not `patch*` and not `patch-1.3.1`.**
+The template's `.github/workflows/branch.yml` lets a PR into `master` come only from `dev` on the nf-core repo, or from a branch named `patch`.
+A PR's head branch cannot be changed afterwards, so a wrong name costs a closed PR and a new one.
+The file is template-managed (`files_unchanged`), so do not edit it.
+Cut the branch from the previous release tag and cherry-pick the merge commits of the fixes with `git cherry-pick -m 1 <merge sha>`.
+Expect CHANGELOG conflicts, and check the pipeline version string in the test snapshots (`"nf-core/<pipeline>": "vX.Y.Z"`), which the version bump makes stale.
+After the release, merge `master` back into `dev`.
+Confirmed 2026-10-21 on nf-core/magmap#288/#289: the user had remembered `patch*`, and the branch protection check failed in 3 s.
 
 **First step of every release, before the version bump: do a final pass over every comment and doc in the repo**
 (not just files touched by the release's own PRs) — concise, to the point, clear, but with
