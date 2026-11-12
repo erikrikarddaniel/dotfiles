@@ -4,7 +4,9 @@ description: >
   Use when writing, editing or reviewing Nextflow code (any project, nf-core or not): combining or
   joining channels, passing a reference/database/index as a separate process input, awk or shell
   inside a module script, Groovy GString interpolation in a script block, process template files,
-  stageAs, or gzip handling between modules. Also for tests of channel ordering and concurrency.
+  stageAs, or gzip handling between modules. Also for tests of channel ordering and concurrency,
+  for upgrading the Nextflow version of a project or a running large run (26.10 changes), and for
+  static typing (`nextflow.enable.types`, typed processes, records, the `output {}` block).
 ---
 
 # Nextflow gotchas
@@ -83,3 +85,34 @@ No container pull, no executor queueing. metatdenovo already does this for `_mqc
 Do gunzip and gzip inside the module that processes the file, not in separate `PIGZ_*` modules between steps: a bridging step leaves a large uncompressed intermediate in `work/`.
 If the tool can't read gzip natively (check empirically; KofamScan can't, and a `<(gunzip -c ...)` FIFO fails because it is read once per profile), patch the vendored module (`nf-core modules patch`): gunzip the input at the top, gzip the output at the bottom, `rm` the intermediate.
 The patched module can then no longer go upstream as is.
+
+## Upgrading Nextflow (26.10 and later)
+
+From the official 26.10 migration page (docs.seqera.io/nextflow/migrations/26-10), read 2026-11-12, not yet run-tested in the user's pipelines.
+
+- **Don't upgrade Nextflow under a large run you intend to `-resume`.** The hash of `eval` commands changed in 26.10, so every process with an `eval` output re-executes on the first resume. nf-core modules declare their versions with `eval(...)` topic outputs, so that is nearly every task. Finish or pin the run on its old `NXF_VER`.
+- **Console output goes to stderr**, also for `nextflow config` and `nextflow run -output-format json`. Capture everything with `> out.log 2>&1`; `-bg` runs still write to stdout.
+- **`executor.cpus` and `executor.memory` now apply to grid executors**: a task asking for more fails. To limit only the local executor, use `executor.$local.cpus` and `executor.$local.memory`.
+- **Removed:** `-with-weblog` (use the nf-weblog plugin), the `echo` directive (use `debug`). The Kubernetes executor uses Jobs, not Pods, by default (`k8s.computeResourceType = 'Pod'` restores it).
+- **Deprecated:** the process `when:` section (use workflow logic or the `process.when` config setting), the `storeDir` directive, `seqera.executor.autoLabels` (use `tower.autoLabels`). Every nf-core module has `when: task.ext.when == null || task.ext.when`, so expect lint warnings until the template changes; don't edit vendored modules for it.
+- **Useful additions:** `nextflow logfile <run name|last> [-level ERROR] [-f]`; the `accelerator` directive on the local executor; the formatter keeps comments.
+- Not documented in any page read: when static typing or the strict parser becomes the default.
+
+## Static typing (stable in 26.10, opt-in)
+
+Syntax is unchanged since 26.04. Source: docs.seqera.io/nextflow/{static-typing,workflow-typed,process-typed,typed-parameters,static-typing-prep}, 2026-11-12. **No pipeline of the user's is typed yet**; treat this as a map for a spike, not a tested recipe.
+
+- **Enable:** `nextflow.enable.types = true` in every script that has typed processes or workflows (legacy and typed definitions can't share a script). The `params {}` and `output {}` blocks work without it. The static-typing page also asks for `NXF_SYNTAX_PARSER=v2`, while the strict-syntax page says the strict parser is the default since 26.04; check on the Nextflow in use.
+- **Checking:** `nextflow lint` reports type errors. `nextflow run` only warns. No documented flag makes `run` fail, so keep `nextflow lint` as a CI step.
+- **Typed process:** `input: sample: Sample` or `tuple(id: String, fastq: Path)`; `Path?` is nullable (a null input otherwise fails the task); `output: out: Path = file('x.txt')`, `stdout()`, `env('X')`, `file('x', optional: true)` gives `null`; `record(...)` and `tuple(...)` for structure. `topic:` section: `tuple('bash', eval('bash --version')) >> 'versions'`. `stage:` section for `env`, `stdin`, `stageAs`.
+- **Record:** `record Sample { id: String; fastq: Path }`. Missing fields fail the run, extra fields are ignored, `Path` fields are staged. Same-named files from a `List<Sample>` collide: use `stageAs 'fastq?/*'`, and `stageAs` rejects nulls.
+- **Forbidden in typed workflows:** the `Channel` factory (use `channel`), implicit `it`, `set`/`tap`, `|` and `&`, `.out` on process/workflow calls (assign the call: `x = P()`), the `each` input qualifier. Legacy operators run but aren't type-checked (e.g. `splitCsv` becomes `flatMap { it.splitCsv(...) }` with a named parameter).
+- **`output {}` replaces `publishDir`**: assign in the entry workflow's `publish:` section, declare in `output { name: Channel<T> { path '...'; index { path 'index.csv' } } }`. A path closure may return a map of file to directory; `file >> (cond ? "dir/" : null)` routes single files. One `output` block per script.
+- **Typed `params {}`:** no default means required; `Boolean` without default is `false`; `Path` params must exist at launch (use `String` for created paths); reference them only in the entry workflow or the `output` block (matches the "params flow in as values" rule in `nf-core-pipeline-dev`).
+- **Pipeline composition** (26.10, experimental): a typed pipeline with `params`/`output` can be included as a workflow (`params` = `take`, `output` = `emit`); must be aliased, config selectors use the alias (`withName: 'RNASEQ:STAR_ALIGN'`), no `publishDir`, no `lib`/`projectDir`/`bin`.
+
+What stands in the way for the user's nf-core pipelines (checked on taxmarker, 2026-11-12):
+- `.out` is used throughout `workflows/taxmarker.nf` and the subworkflows; every module has `when: task.ext.when`; modules use `tuple val(meta), path(...)` and the meta-map rule, not records. A typed `main` workflow calling untyped vendored modules is not documented either way: test with a one-process spike before planning.
+- `publishDir` lives in `conf/modules.config` (default rule per process name plus many overrides); the `output {}` block would move it into code, and nf-core template tooling still expects `publishDir`.
+- The nf-core template and nf-core/modules are untyped; convert only after they move, or in a branch that can follow the template.
+- Agent helper: `migrate-nextflow-code` in `nextflow-io/agent-skills` (`/plugin install nextflow@nextflow-io-agent-skills`) iterates with `nextflow lint`. Read its output before accepting; it rewrites signatures and `publishDir`.
