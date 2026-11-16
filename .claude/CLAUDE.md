@@ -39,7 +39,7 @@ These takeaways hold regardless of its current wording:
   Regenerate on the CI CPU architecture when an md5 depends on the environment.
 
 A change to a repo's `AGENTS.md` gets its own PR, branched off the target branch.
-Never bundle it with other work, however small.
+Exception: a line that the PR's own change makes wrong is corrected in that PR.
 
 ## Locating software
 
