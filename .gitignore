@@ -4,3 +4,4 @@
 # copy is machine state; the versioned template is .claude/settings.example.json
 .claude/settings.json
 .claude/.credentials.json
+.claude/skills/synced/
