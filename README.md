@@ -10,9 +10,24 @@ git clone git@github.com:erikrikarddaniel/dotfiles.git ~/dotfiles
 cp ~/dotfiles/.claude/settings.example.json ~/dotfiles/.claude/settings.json
 ln -s ~/dotfiles/.claude/settings.json ~/.claude/settings.json
 ln -s ~/dotfiles/.claude/CLAUDE.md ~/.claude/CLAUDE.md
-ln -sf ~/dotfiles/.bashrc ~/.bashrc
-ln -sf ~/dotfiles/.bash_aliases ~/.bash_aliases
 ```
+
+## Shell startup files
+
+`.bashrc`, `.bash_aliases`, `.bash_profile` and `.profile` hold only settings shared by all machines.
+They are not symlinked.
+Each machine has its own real `~/.bashrc` etc. that sources the shared file and adds what is local: conda init, juliaup, linuxbrew, `NXF_*` paths, locale, host aliases.
+Installers such as `conda init` then write into the local file, not into this repo.
+
+On a new machine:
+
+```
+for f in .bash_aliases .bash_profile .profile; do echo ". ~/dotfiles/$f" > ~/$f; done
+printf '. ~/dotfiles/.bashrc\n\n[[ $- == *i* ]] || return\n' > ~/.bashrc
+```
+
+Put environment variables in `~/.bash_profile` before its `.` line, so that `.bashrc` already sees them.
+Machine-specific interactive setup goes in `~/.bashrc` after the `return` line.
 
 ## `.claude/settings.json` is not tracked
 

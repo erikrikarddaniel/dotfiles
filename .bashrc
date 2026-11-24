@@ -116,43 +116,6 @@ if ! shopt -oq posix; then
   fi
 fi
 
-# >>> conda initialize >>>
-# !! Contents within this block are managed by 'conda init' !!
-__conda_setup="$('/home/daluab/miniconda3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
-if [ $? -eq 0 ]; then
-    eval "$__conda_setup"
-else
-    if [ -f "/home/daluab/miniconda3/etc/profile.d/conda.sh" ]; then
-        . "/home/daluab/miniconda3/etc/profile.d/conda.sh"
-    else
-        export PATH="/home/daluab/miniconda3/bin:$PATH"
-    fi
-fi
-unset __conda_setup
-
-if [ -f "/home/daluab/miniconda3/etc/profile.d/mamba.sh" ]; then
-    . "/home/daluab/miniconda3/etc/profile.d/mamba.sh"
-fi
-# <<< conda initialize <<<
-
-
-# >>> juliaup initialize >>>
-
-# !! Contents within this block are managed by juliaup !!
-
-case ":$PATH:" in
-    *:/home/daluab/.juliaup/bin:*)
-        ;;
-
-    *)
-        export PATH=/home/daluab/.juliaup/bin${PATH:+:${PATH}}
-        ;;
-esac
-
-# <<< juliaup initialize <<<
-export PATH="$HOME/.local/bin:$PATH"
-eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv bash)"
-
 # Screen session named after the pipeline dir, windows "root" and "claude"
 pscreen() {
   local name=${PWD##*/}
