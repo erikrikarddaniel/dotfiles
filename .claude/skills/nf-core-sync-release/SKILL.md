@@ -13,7 +13,7 @@ description: >
 
 nf-core/tools periodically releases a new template. The user syncs **locally** (`nf-core pipelines sync`, no `--pull-request`), then wants to discuss merge conflicts together rather than have them resolved unilaterally.
 
-1. **Check `nf-core --version` against the latest.** bioconda lags PyPI: `pip install --upgrade nf-core` inside the conda env may be needed.
+1. **Check `nf-core --version` against the latest.** nf-core is a `pixi global` tool from bioconda: `pixi global update nf-core`. bioconda lags PyPI by a few days after a release; if the new version isn't there yet, ask the user rather than pip-installing into the pixi environment.
 2. **Make `origin/TEMPLATE` current first.** The sync always tries `git checkout origin/TEMPLATE -b TEMPLATE`, and falls back to a stale *local* `TEMPLATE` if that fails (missing `origin/TEMPLATE`, or a local one already exists). A stale base gives a huge, confusing conflict set.
    `git fetch upstream && git checkout -B TEMPLATE upstream/TEMPLATE && git push origin TEMPLATE`
    (magmap had no `origin/TEMPLATE` and a local one five versions behind; metatdenovo's fork was stuck at 2.2.dev0.)

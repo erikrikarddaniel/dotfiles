@@ -44,7 +44,8 @@ Exception: a line that the PR's own change makes wrong is corrected in that PR.
 ## Locating software
 
 If a command isn't on `PATH`, or several installs exist, ask the user where it is instead of searching the filesystem.
-Known locations: `prek`, `nf-core` and `nf-test` are in the `nf-core` conda env (`~/miniconda3/envs/nf-core`).
+Known locations: `prek`, `nf-core` and `nf-test` are `pixi global` tools in `~/.pixi/bin` (upgrade with `pixi global update <tool>`).
+The `nf-core` conda env (`~/miniconda3/envs/nf-core`) still holds older copies and `nf-metro`. Don't activate it for the other three: its binaries would shadow pixi's.
 
 ## Waiting for a background process
 
