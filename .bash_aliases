@@ -22,11 +22,6 @@ alias mkdir='mkdir -p'
 
 alias toolsdist='make dist; ( cd /usr/local; sudo tar xvzof ~/tools/dist.tar.gz )'
 
-# SSH to twin2 virtual machines
-alias sshtwin20='ssh -A -p 50020 -o StrictHostKeyChecking=no twin2.scilifelab.se'
-alias sshtwin21='ssh -A -p 50021 -o StrictHostKeyChecking=no twin2.scilifelab.se'
-alias sshtwin23='ssh -A -p 50023 -o StrictHostKeyChecking=no twin2.scilifelab.se'
-
 # The first is for Rstudio server itself (http://localhost:8700), the second for a rendering window (http://localhost:4200).
 # The second assumes one has started `quarto preview file.qmd --no-browser --port 4200` in Rstudio.
 alias seqrsts='ssh -N -L 8700:localhost:8787 -L 4200:localhost:4200 sequoia'
