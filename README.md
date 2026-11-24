@@ -11,6 +11,7 @@ cp ~/dotfiles/.claude/settings.example.json ~/dotfiles/.claude/settings.json
 ln -s ~/dotfiles/.claude/settings.json ~/.claude/settings.json
 ln -s ~/dotfiles/.claude/CLAUDE.md ~/.claude/CLAUDE.md
 ln -sf ~/dotfiles/.bashrc ~/.bashrc
+ln -sf ~/dotfiles/.bash_aliases ~/.bash_aliases
 ```
 
 ## `.claude/settings.json` is not tracked
