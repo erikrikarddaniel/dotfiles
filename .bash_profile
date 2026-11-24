@@ -16,8 +16,6 @@ if [ -d ~/bin ] ; then
     PATH=~/bin:"${PATH}"
 fi
 
-[ -d "${PIXI_HOME:-$HOME/.pixi}/bin" ] && PATH="${PIXI_HOME:-$HOME/.pixi}/bin:$PATH"
-
 # Komplettering
 [ -f /etc/profile.d/bash-completion ] && . /etc/profile.d/bash-completion
 

@@ -116,6 +116,8 @@ if ! shopt -oq posix; then
   fi
 fi
 
+[ -d "${PIXI_HOME:-$HOME/.pixi}/bin" ] && PATH="${PIXI_HOME:-$HOME/.pixi}/bin:$PATH"
+
 # Screen session named after the pipeline dir, windows "root" and "claude"
 pscreen() {
   local name=${PWD##*/}
