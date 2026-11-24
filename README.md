@@ -10,6 +10,7 @@ git clone git@github.com:erikrikarddaniel/dotfiles.git ~/dotfiles
 cp ~/dotfiles/.claude/settings.example.json ~/dotfiles/.claude/settings.json
 ln -s ~/dotfiles/.claude/settings.json ~/.claude/settings.json
 ln -s ~/dotfiles/.claude/CLAUDE.md ~/.claude/CLAUDE.md
+ln -sf ~/dotfiles/.bashrc ~/.bashrc
 ```
 
 ## `.claude/settings.json` is not tracked
