@@ -123,7 +123,9 @@ pscreen() {
   local name=${PWD##*/}
   name=${name#nf-core-}
   screen -r "$name" 2>/dev/null && return
-  screen -T screen.xterm-256color -dmS "$name" -t root
-  screen -S "$name" -X screen -t claude
-  screen -r "$name"
+  # Windows created while detached (-dm) get a minimal TERMCAP without SGR mouse
+  local rc; rc=$(mktemp)
+  printf 'screen -t root\nscreen -t claude\n' > "$rc"
+  screen -S "$name" -c "$rc"
+  rm -f "$rc"
 }
