@@ -52,8 +52,8 @@ Nothing lints this. When adding or touching a test config, sweep the directory: 
 
 - Within each `### \`Section\``, order entries by PR number **descending**: the newest at the top, right after the heading. Check the existing order hasn't drifted.
 - Entries are user-facing. Skip CI plumbing such as action digests or SHAs.
-- Handles: author, plus a reviewer who shaped the PR (requested changes, found a bug, substantive comments that led to changes). A bare approval or one nit doesn't count. Style `(@author, reviewed by @reviewer)`. Sweep `pulls/N/reviews` and `pulls/N/comments` and propose the list to the user before writing.
-  **From phyloplace 2.4.0 (2026-11-19), the user's rule is wider: name every reviewer who approved, a bare LGTM included, on every PR of a release, until it is released.** Audit all entries of the release section against `pulls/N/reviews`, not only the PR in hand; a merged entry on `dev` may lack the handle. Whether to keep this rule after the release is not settled: ask.
+- Handles: author, plus every reviewer who approved, a bare LGTM included (the user's standing rule since phyloplace 2.4.0, confirmed 2026-11-25). A plain COMMENTED review is not an approval. A review given elsewhere, e.g. on Slack, counts when the user names it. Style `(by @author, reviewed by @reviewer)`.
+  Add the handle when the approval arrives. Before a release PR, audit every entry of the release section against `pulls/N/reviews`, not only the PR in hand: a merged entry on `dev` may lack the handle.
 
 ## Docs pages
 
