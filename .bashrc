@@ -123,7 +123,7 @@ pscreen() {
   local name=${PWD##*/}
   name=${name#nf-core-}
   screen -r "$name" 2>/dev/null && return
-  screen -dmS "$name" -t root
+  screen -T screen.xterm-256color -dmS "$name" -t root
   screen -S "$name" -X screen -t claude
   screen -r "$name"
 }
