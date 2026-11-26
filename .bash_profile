@@ -24,3 +24,4 @@ export EDITOR="$VISUAL"
 
 export SCREENRC=./.screenrc
 
+set -o vi
