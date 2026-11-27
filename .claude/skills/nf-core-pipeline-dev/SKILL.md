@@ -103,6 +103,7 @@ Never set a flat override (`memory = { 100.GB }`) in a big run's config: without
 ## AWS full tests
 
 A green `awsfulltest` job in GitHub Actions only means the Platform launch succeeded. The result is on Platform or in Slack.
+A red one on a release PR from a fork, failing at "Launch workflow via Seqera Platform" (`Can't add secret mask for empty string`), is expected: a `pull_request_review` run on a fork PR gets no repository secrets. The template launches `dev` on an approval anyway, never the PR head; only `release` and `workflow_dispatch` runs use `github.sha` (rnasplice#385).
 Fusion spot snapshots (`sending incremental snapshot signal (SIGUSR1)`, every 5 min) can break a step reading through a pipe: BBMap lost a block from its `bgzip -dc` subprocess and Prokka's `parallel --pipe hmmscan` died. `fusion { snapshots = false }` in the `nextflow_config` block of `awsfulltest.yml` fixed both (metatdenovo#584). Suspect this first when a task dies at a multiple of 5 min.
 The website's AWS results tab shows only `results-<release tag sha>`. To fill a release's tab after a failed release run, resume it on Platform with a corrected config, keeping its revision and outdir.
 
